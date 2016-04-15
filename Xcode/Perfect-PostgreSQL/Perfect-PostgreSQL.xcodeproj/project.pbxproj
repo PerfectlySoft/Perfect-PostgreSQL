@@ -67,20 +67,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		F80C64051CC1635F0002F3C9 /* Perfect-PostgreSQLTests */ = {
+		F80C64051CC1635F0002F3C9 /* PostgreSQLTests */ = {
 			isa = PBXGroup;
 			children = (
 				F80C64061CC1637F0002F3C9 /* PostgreSQLTests.swift */,
 				F80C64081CC1639B0002F3C9 /* Info.plist */,
 			);
-			name = "Perfect-PostgreSQLTests";
+			name = PostgreSQLTests;
 			sourceTree = "<group>";
 		};
 		F8F28A641BD57D8900367249 = {
 			isa = PBXGroup;
 			children = (
 				F8F28A881BD57E1400367249 /* Source */,
-				F80C64051CC1635F0002F3C9 /* Perfect-PostgreSQLTests */,
+				F80C64051CC1635F0002F3C9 /* PostgreSQLTests */,
 				F8F28A701BD57D8900367249 /* Support */,
 				F8F28A8F1BD57E8100367249 /* Linked */,
 				F8F28A6F1BD57D8900367249 /* Products */,
