@@ -20,6 +20,35 @@
 
 import libpq
 
+#if swift(>=3.0)
+	extension UnsafeMutablePointer {
+		public static func alloc(num: Int) -> UnsafeMutablePointer<Pointee> {
+			return UnsafeMutablePointer<Pointee>.alloc(num)
+		}
+	}
+#else
+	typealias ErrorProtocol = ErrorType
+	typealias OpaquePointer = COpaquePointer
+	extension String {
+		init?(validatingUTF8: UnsafePointer<Int8>) {
+			if let s = String.fromCString(validatingUTF8) {
+				self.init(s)
+			} else {
+				return nil
+			}
+		}
+	}
+	extension UnsafeMutablePointer {
+		func deallocateCapacity(num: Int) {
+			self.dealloc(num)
+		}
+		
+		func deinitialize(count count: Int) {
+			self.destroy(count)
+		}
+	}
+#endif
+
 public final class PGResult {
 	
 	public enum StatusType {
@@ -223,7 +252,7 @@ public final class PGConnection {
 			asStrings.append(String(item))
 		}
 		let count = asStrings.count
-		let values = UnsafeMutablePointer<UnsafePointer<Int8>>(allocatingCapacity: count)
+		let values = UnsafeMutablePointer<UnsafePointer<Int8>>.alloc(count)
 		
 		defer {
 			values.deinitialize(count: count) ; values.deallocateCapacity(count)
