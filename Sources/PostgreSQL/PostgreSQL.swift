@@ -49,8 +49,10 @@ import libpq
 	}
 #endif
 
+/// result object
 public final class PGResult {
 	
+    /// Result Status enum
 	public enum StatusType {
 		case EmptyQuery
 		case CommandOK
@@ -72,10 +74,12 @@ public final class PGResult {
 		self.close()
 	}
 	
+    /// close result object
 	public func close() {
 		self.clear()
 	}
 	
+    /// clear and disconnect result object
 	public func clear() {
 		if self.res != nil {
 			PQclear(self.res)
@@ -83,11 +87,13 @@ public final class PGResult {
 		}
 	}
 	
+    /// Result Status number as Int
 	public func statusInt() -> Int {
 		let s = PQresultStatus(self.res)
 		return Int(s.rawValue)
 	}
 	
+    /// Result Status Value
 	public func status() -> StatusType {
 		let s = PQresultStatus(self.res)
 		switch(s.rawValue) {
@@ -111,14 +117,17 @@ public final class PGResult {
 		return .Unknown
 	}
 	
+    /// Result Status Message
 	public func errorMessage() -> String {
 		return String(validatingUTF8: PQresultErrorMessage(self.res)) ?? ""
 	}
 	
+    /// Result field count
 	public func numFields() -> Int {
 		return Int(PQnfields(self.res))
 	}
 	
+    /// Field name for index value
 	public func fieldName(index: Int) -> String? {
 		let fn = PQfname(self.res, Int32(index))
 		if fn != nil {
@@ -127,64 +136,77 @@ public final class PGResult {
 		return nil
 	}
 	
+    /// Field type for index value
 	public func fieldType(index: Int) -> Oid? {
 		let fn = PQftype(self.res, Int32(index))
 		return fn
 	}
 	
+    /// number of rows (Tuples) returned in result
 	public func numTuples() -> Int {
 		return Int(PQntuples(self.res))
 	}
 	
+    /// test null field at row index for field index
 	public func fieldIsNull(tupleIndex: Int, fieldIndex: Int) -> Bool {
 		return 1 == PQgetisnull(self.res, Int32(tupleIndex), Int32(fieldIndex))
 	}
 	
+    /// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String {
 		let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex))
 		return String(validatingUTF8: v) ?? ""
 	}
 	
+    /// return value for Int field type with row and field indexes provided
 	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Int(s) ?? 0
 	}
 	
+    /// return value for Bool field type with row and field indexes provided
 	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return s == "t"
 	}
 	
+    /// return value for Int8 field type with row and field indexes provided
 	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8 {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Int8(s) ?? 0
 	}
 	
+    /// return value for Int16 field type with row and field indexes provided
 	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16 {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Int16(s) ?? 0
 	}
 	
+    /// return value for Int32 field type with row and field indexes provided
 	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32 {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Int32(s) ?? 0
 	}
 	
+    /// return value for Int64 field type with row and field indexes provided
 	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64 {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Int64(s) ?? 0
 	}
 	
+    /// return value for Double field type with row and field indexes provided
 	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Double(s) ?? 0
 	}
 	
+    /// return value for Float field type with row and field indexes provided
 	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float {
 		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
 		return Float(s) ?? 0
 	}
 	
+    /// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8] {
 		let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex))
 		let length = Int(PQgetlength(self.res, Int32(tupleIndex), Int32(fieldIndex)))
@@ -197,8 +219,10 @@ public final class PGResult {
 	}
 }
 
+/// connection management class
 public final class PGConnection {
 	
+    /// Connection Status enum
 	public enum StatusType {
 		case OK
 		case Bad
@@ -207,6 +231,7 @@ public final class PGConnection {
 	var conn = OpaquePointer(nilLiteral: ())
 	var connectInfo: String = ""
 	
+    /// empty init
 	public init() {
 		
 	}
@@ -215,16 +240,19 @@ public final class PGConnection {
 		self.close()
 	}
 	
+    /// Makes a new connection to the database server.
 	public func connectdb(info: String) -> StatusType {
 		self.conn = PQconnectdb(info)
 		self.connectInfo = info
 		return self.status()
 	}
 	
+    /// Close db connection
 	public func close() {
 		self.finish()
 	}
 	
+    /// Closes the connection to the server. Also frees memory used by the PGconn object.
 	public func finish() {
 		if self.conn != nil {
 			PQfinish(self.conn)
@@ -232,20 +260,24 @@ public final class PGConnection {
 		}
 	}
 	
+    /// Returns the status of the connection.
 	public func status() -> StatusType {
 		let status = PQstatus(self.conn)
 		return status == CONNECTION_OK ? .OK : .Bad
 	}
 	
+    /// Returns the error message most recently generated by an operation on the connection.
 	public func errorMessage() -> String {
 		return String(validatingUTF8: PQerrorMessage(self.conn)) ?? ""
 	}
 	
+    /// Submits a command to the server and waits for the result.
 	public func exec(statement: String) -> PGResult {
 		return PGResult(PQexec(self.conn, statement))
 	}
 	
 	// !FIX! does not handle binary data
+    /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
 	public func exec(statement: String, params: [String]) -> PGResult {
 		var asStrings = [String]()
 		for item in params {
