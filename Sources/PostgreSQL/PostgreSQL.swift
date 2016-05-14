@@ -22,13 +22,14 @@ import libpq
 
 #if swift(>=3.0)
 	extension UnsafeMutablePointer {
-		public static func alloc(num: Int) -> UnsafeMutablePointer<Pointee> {
-			return UnsafeMutablePointer<Pointee>.alloc(num)
+		public static func allocatingCapacity(_ num: Int) -> UnsafeMutablePointer<Pointee> {
+			return UnsafeMutablePointer<Pointee>(allocatingCapacity: num)
 		}
 	}
 #else
 	typealias ErrorProtocol = ErrorType
 	typealias OpaquePointer = COpaquePointer
+	
 	extension String {
 		init?(validatingUTF8: UnsafePointer<Int8>) {
 			if let s = String.fromCString(validatingUTF8) {
@@ -39,6 +40,10 @@ import libpq
 		}
 	}
 	extension UnsafeMutablePointer {
+		public static func allocatingCapacity(num: Int) -> UnsafeMutablePointer<Memory> {
+			return UnsafeMutablePointer<Memory>.alloc(num)
+		}
+	
 		func deallocateCapacity(num: Int) {
 			self.dealloc(num)
 		}
@@ -64,9 +69,9 @@ public final class PGResult {
 		case Unknown
 	}
 	
-	var res: OpaquePointer
+	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
 	
-	init(_ res: OpaquePointer) {
+	init(_ res: OpaquePointer?) {
 		self.res = res
 	}
 	
@@ -82,20 +87,20 @@ public final class PGResult {
     /// clear and disconnect result object
 	public func clear() {
 		if self.res != nil {
-			PQclear(self.res)
-			self.res = OpaquePointer(nilLiteral: ())
+			PQclear(self.res!)
+			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
 	
     /// Result Status number as Int
 	public func statusInt() -> Int {
-		let s = PQresultStatus(self.res)
+		let s = PQresultStatus(self.res!)
 		return Int(s.rawValue)
 	}
 	
     /// Result Status Value
 	public func status() -> StatusType {
-		let s = PQresultStatus(self.res)
+		let s = PQresultStatus(self.res!)
 		switch(s.rawValue) {
 		case PGRES_EMPTY_QUERY.rawValue:
 			return .EmptyQuery
@@ -119,98 +124,137 @@ public final class PGResult {
 	
     /// Result Status Message
 	public func errorMessage() -> String {
-		return String(validatingUTF8: PQresultErrorMessage(self.res)) ?? ""
+		return String(validatingUTF8: PQresultErrorMessage(self.res!)) ?? ""
 	}
 	
     /// Result field count
 	public func numFields() -> Int {
-		return Int(PQnfields(self.res))
+		return Int(PQnfields(self.res!))
 	}
 	
     /// Field name for index value
-	public func fieldName(index: Int) -> String? {
-		let fn = PQfname(self.res, Int32(index))
-		if fn != nil {
+	public func fieldName(index index: Int) -> String? {
+	#if swift(>=3.0)
+		if let fn = PQfname(self.res!, Int32(index)) {
 			return String(validatingUTF8: fn) ?? ""
 		}
+	#else
+		let fn = PQfname(self.res!, Int32(index))
+		if nil != fn {
+			return String(validatingUTF8: fn) ?? ""
+		}
+	#endif
 		return nil
 	}
 	
     /// Field type for index value
-	public func fieldType(index: Int) -> Oid? {
-		let fn = PQftype(self.res, Int32(index))
+	public func fieldType(index index: Int) -> Oid? {
+		let fn = PQftype(self.res!, Int32(index))
 		return fn
 	}
 	
     /// number of rows (Tuples) returned in result
 	public func numTuples() -> Int {
-		return Int(PQntuples(self.res))
+		return Int(PQntuples(self.res!))
 	}
 	
     /// test null field at row index for field index
-	public func fieldIsNull(tupleIndex: Int, fieldIndex: Int) -> Bool {
-		return 1 == PQgetisnull(self.res, Int32(tupleIndex), Int32(fieldIndex))
+	public func fieldIsNull(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Bool {
+		return 1 == PQgetisnull(self.res!, Int32(tupleIndex), Int32(fieldIndex))
 	}
 	
     /// return value for String field type with row and field indexes provided
-	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String {
-		let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex))
-		return String(validatingUTF8: v) ?? ""
+	public func getFieldString(tupleIndex tupleIndex: Int, fieldIndex: Int) -> String? {
+	#if swift(>=3.0)
+		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
+			return nil
+		}
+	#else
+		let v = PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))
+		guard nil != v else {
+			return nil
+		}
+	#endif
+		return String(validatingUTF8: v)
 	}
 	
     /// return value for Int field type with row and field indexes provided
-	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Int(s) ?? 0
+	public func getFieldInt(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int(s)
 	}
 	
     /// return value for Bool field type with row and field indexes provided
-	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
+	public func getFieldBool(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Bool? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
 		return s == "t"
 	}
 	
     /// return value for Int8 field type with row and field indexes provided
-	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8 {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Int8(s) ?? 0
+	public func getFieldInt8(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int8? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int8(s)
 	}
 	
     /// return value for Int16 field type with row and field indexes provided
-	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16 {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Int16(s) ?? 0
+	public func getFieldInt16(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int16? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int16(s)
 	}
 	
     /// return value for Int32 field type with row and field indexes provided
-	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32 {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Int32(s) ?? 0
+	public func getFieldInt32(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int32? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int32(s)
 	}
 	
     /// return value for Int64 field type with row and field indexes provided
-	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64 {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Int64(s) ?? 0
+	public func getFieldInt64(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int64? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int64(s)
 	}
 	
     /// return value for Double field type with row and field indexes provided
-	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Double(s) ?? 0
+	public func getFieldDouble(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Double? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Double(s)
 	}
 	
     /// return value for Float field type with row and field indexes provided
-	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float {
-		let s = getFieldString(tupleIndex, fieldIndex: fieldIndex)
-		return Float(s) ?? 0
+	public func getFieldFloat(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Float? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Float(s)
 	}
 	
     /// return value for Blob field type with row and field indexes provided
-	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8] {
-		let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex))
-		let length = Int(PQgetlength(self.res, Int32(tupleIndex), Int32(fieldIndex)))
-		let ip = UnsafePointer<Int8>(v)
+	public func getFieldBlob(tupleIndex tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
+	#if swift(>=3.0)
+		guard let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))) else {
+			return nil
+		}
+	#else
+		let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex)))
+		guard nil != ip else {
+			return nil
+		}
+	#endif
+		let length = Int(PQgetlength(self.res!, Int32(tupleIndex), Int32(fieldIndex)))
 		var ret = [Int8]()
 		for idx in 0..<length {
 			ret.append(ip[idx])
@@ -228,7 +272,7 @@ public final class PGConnection {
 		case Bad
 	}
 	
-	var conn = OpaquePointer(nilLiteral: ())
+	var conn = OpaquePointer(bitPattern: 0)
 	var connectInfo: String = ""
 	
     /// empty init
@@ -241,7 +285,7 @@ public final class PGConnection {
 	}
 	
     /// Makes a new connection to the database server.
-	public func connectdb(info: String) -> StatusType {
+	public func connectdb(_ info: String) -> StatusType {
 		self.conn = PQconnectdb(info)
 		self.connectInfo = info
 		return self.status()
@@ -256,7 +300,7 @@ public final class PGConnection {
 	public func finish() {
 		if self.conn != nil {
 			PQfinish(self.conn)
-			self.conn = OpaquePointer(nilLiteral: ())
+			self.conn = OpaquePointer(bitPattern: 0)
 		}
 	}
 	
@@ -272,20 +316,23 @@ public final class PGConnection {
 	}
 	
     /// Submits a command to the server and waits for the result.
-	public func exec(statement: String) -> PGResult {
+	public func exec(statement statement: String) -> PGResult {
 		return PGResult(PQexec(self.conn, statement))
 	}
 	
 	// !FIX! does not handle binary data
     /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
-	public func exec(statement: String, params: [String]) -> PGResult {
+	public func exec(statement statement: String, params: [String]) -> PGResult {
 		var asStrings = [String]()
 		for item in params {
 			asStrings.append(String(item))
 		}
 		let count = asStrings.count
-		let values = UnsafeMutablePointer<UnsafePointer<Int8>>.alloc(count)
-		
+	#if swift(>=3.0)
+		let values = UnsafeMutablePointer<UnsafePointer<Int8>?>.allocatingCapacity(count)
+	#else
+		let values = UnsafeMutablePointer<UnsafePointer<Int8>>.allocatingCapacity(count)	
+	#endif
 		defer {
 			values.deinitialize(count: count) ; values.deallocateCapacity(count)
 		}

@@ -20,6 +20,9 @@
 import XCTest
 @testable import PostgreSQL
 
+let postgresTestPort = 5433
+let postgresTestConnInfo = "user=postgres host=localhost dbname=postgres port=\(postgresTestPort)"
+
 class PostgreSQLTests: XCTestCase {
 	
 	override func setUp() {
@@ -34,27 +37,27 @@ class PostgreSQLTests: XCTestCase {
 	
 	func testConnect() {
 		let p = PGConnection()
-		p.connectdb("dbname = postgres")
+		p.connectdb(postgresTestConnInfo)
 		let status = p.status()
 		
 		XCTAssert(status == .OK)
-		
+		print(p.errorMessage())
 		p.finish()
 	}
 	
 	func testExec() {
 		let p = PGConnection()
-		p.connectdb("dbname = postgres")
+		p.connectdb(postgresTestConnInfo)
 		let status = p.status()
 		XCTAssert(status == .OK)
 		
-		let res = p.exec("select * from pg_database")
+		let res = p.exec(statement: "select * from pg_database")
 		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK)
 		
 		let num = res.numFields()
 		XCTAssert(num > 0)
 		for x in 0..<num {
-			let fn = res.fieldName(x)
+			let fn = res.fieldName(index: x)
 			XCTAssertNotNil(fn)
 			print(fn!)
 		}
@@ -64,21 +67,21 @@ class PostgreSQLTests: XCTestCase {
 	
 	func testExecGetValues() {
 		let p = PGConnection()
-		p.connectdb("dbname = postgres")
+		p.connectdb(postgresTestConnInfo)
 		let status = p.status()
 		XCTAssert(status == .OK)
 		// name, oid, integer, boolean
-		let res = p.exec("select datname,datdba,encoding,datistemplate from pg_database")
+		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
 		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK)
 		
 		let num = res.numTuples()
 		XCTAssert(num > 0)
 		for x in 0..<num {
-			let c1 = res.getFieldString(x, fieldIndex: 0)
-			XCTAssertTrue(c1.characters.count > 0)
-			let c2 = res.getFieldInt(x, fieldIndex: 1)
-			let c3 = res.getFieldInt(x, fieldIndex: 2)
-			let c4 = res.getFieldBool(x, fieldIndex: 3)
+			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
+			XCTAssertTrue(c1?.characters.count > 0)
+			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
+			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
+			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
 			print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
 		}
 		res.clear()
@@ -87,21 +90,21 @@ class PostgreSQLTests: XCTestCase {
 	
 	func testExecGetValuesParams() {
 		let p = PGConnection()
-		p.connectdb("dbname = postgres")
+		p.connectdb(postgresTestConnInfo)
 		let status = p.status()
 		XCTAssert(status == .OK)
 		// name, oid, integer, boolean
-		let res = p.exec("select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
+		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
 		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK, res.errorMessage())
 		
 		let num = res.numTuples()
 		XCTAssert(num > 0)
 		for x in 0..<num {
-			let c1 = res.getFieldString(x, fieldIndex: 0)
-			XCTAssertTrue(c1.characters.count > 0)
-			let c2 = res.getFieldInt(x, fieldIndex: 1)
-			let c3 = res.getFieldInt(x, fieldIndex: 2)
-			let c4 = res.getFieldBool(x, fieldIndex: 3)
+			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
+			XCTAssertTrue(c1?.characters.count > 0)
+			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
+			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
+			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
 			print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
 		}
 		res.clear()
