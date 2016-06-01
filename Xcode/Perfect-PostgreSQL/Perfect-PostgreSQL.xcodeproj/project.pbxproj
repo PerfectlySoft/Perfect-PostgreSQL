@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		F80C64001CC161880002F3C9 /* PostgreSQL.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80C63FF1CC161880002F3C9 /* PostgreSQL.swift */; };
 		F80C64021CC162FF0002F3C9 /* libpq.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F80C64011CC162FF0002F3C9 /* libpq.tbd */; };
-		F80C64071CC1637F0002F3C9 /* PostgreSQLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80C64061CC1637F0002F3C9 /* PostgreSQLTests.swift */; };
+		F82076A91CFF6A4A00D8975F /* PostgreSQLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82076A81CFF6A4A00D8975F /* PostgreSQLTests.swift */; };
 		F8F28A791BD57D8A00367249 /* PostgreSQL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F8F28A6E1BD57D8900367249 /* PostgreSQL.framework */; };
 		F8F28A911BD57EEC00367249 /* libgssapi_krb5.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F8F28A901BD57EEC00367249 /* libgssapi_krb5.tbd */; };
 		F8F28A931BD57EF600367249 /* libldap.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F8F28A921BD57EF600367249 /* libldap.tbd */; };
@@ -30,8 +30,8 @@
 /* Begin PBXFileReference section */
 		F80C63FF1CC161880002F3C9 /* PostgreSQL.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PostgreSQL.swift; path = ../../Sources/PostgreSQL/PostgreSQL.swift; sourceTree = "<group>"; };
 		F80C64011CC162FF0002F3C9 /* libpq.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libpq.tbd; path = usr/lib/libpq.tbd; sourceTree = SDKROOT; };
-		F80C64061CC1637F0002F3C9 /* PostgreSQLTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PostgreSQLTests.swift; path = ../../Sources/PostgreSQLTests/PostgreSQLTests.swift; sourceTree = "<group>"; };
 		F80C64081CC1639B0002F3C9 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = "Perfect-PostgreSQLTests/Info.plist"; sourceTree = "<group>"; };
+		F82076A81CFF6A4A00D8975F /* PostgreSQLTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PostgreSQLTests.swift; path = ../../Tests/PostgreSQL/PostgreSQLTests.swift; sourceTree = "<group>"; };
 		F8F28A6E1BD57D8900367249 /* PostgreSQL.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PostgreSQL.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8F28A711BD57D8900367249 /* PostgreSQL.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PostgreSQL.h; sourceTree = "<group>"; };
 		F8F28A731BD57D8900367249 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -69,7 +69,7 @@
 		F80C64051CC1635F0002F3C9 /* PostgreSQLTests */ = {
 			isa = PBXGroup;
 			children = (
-				F80C64061CC1637F0002F3C9 /* PostgreSQLTests.swift */,
+				F82076A81CFF6A4A00D8975F /* PostgreSQLTests.swift */,
 				F80C64081CC1639B0002F3C9 /* Info.plist */,
 			);
 			name = PostgreSQLTests;
@@ -240,7 +240,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F80C64071CC1637F0002F3C9 /* PostgreSQLTests.swift in Sources */,
+				F82076A91CFF6A4A00D8975F /* PostgreSQLTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

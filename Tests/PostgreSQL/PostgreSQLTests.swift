@@ -20,11 +20,10 @@
 import XCTest
 @testable import PostgreSQL
 
-let postgresTestPort = 5433
-let postgresTestConnInfo = "user=postgres host=localhost dbname=postgres port=\(postgresTestPort)"
-
 class PostgreSQLTests: XCTestCase {
-	
+    
+    let postgresTestConnInfo = "host=localhost dbname=postgres"
+    
 	override func setUp() {
 		super.setUp()
 		// Put setup code here. This method is called before the invocation of each test method in the class.
@@ -37,8 +36,7 @@ class PostgreSQLTests: XCTestCase {
 	
 	func testConnect() {
 		let p = PGConnection()
-		p.connectdb(postgresTestConnInfo)
-		let status = p.status()
+		let status = p.connectdb(postgresTestConnInfo)
 		
 		XCTAssert(status == .OK)
 		print(p.errorMessage())
@@ -47,8 +45,7 @@ class PostgreSQLTests: XCTestCase {
 	
 	func testExec() {
 		let p = PGConnection()
-		p.connectdb(postgresTestConnInfo)
-		let status = p.status()
+		let status = p.connectdb(postgresTestConnInfo)
 		XCTAssert(status == .OK)
 		
 		let res = p.exec(statement: "select * from pg_database")
@@ -66,9 +63,8 @@ class PostgreSQLTests: XCTestCase {
 	}
 	
 	func testExecGetValues() {
-		let p = PGConnection()
-		p.connectdb(postgresTestConnInfo)
-		let status = p.status()
+        let p = PGConnection()
+        let status = p.connectdb(postgresTestConnInfo)
 		XCTAssert(status == .OK)
 		// name, oid, integer, boolean
 		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
@@ -89,9 +85,8 @@ class PostgreSQLTests: XCTestCase {
 	}
 	
 	func testExecGetValuesParams() {
-		let p = PGConnection()
-		p.connectdb(postgresTestConnInfo)
-		let status = p.status()
+        let p = PGConnection()
+        let status = p.connectdb(postgresTestConnInfo)
 		XCTAssert(status == .OK)
 		// name, oid, integer, boolean
 		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
@@ -111,3 +106,15 @@ class PostgreSQLTests: XCTestCase {
 		p.finish()
 	}
 }
+
+extension PostgreSQLTests {
+    static var allTests : [(String, (PostgreSQLTests) -> () throws -> ())] {
+        return [
+            ("testConnect", testConnect),
+            ("testExec", testExec),
+            ("testExecGetValues", testExecGetValues),
+            ("testExecGetValuesParams", testExecGetValuesParams)
+        ]
+    }
+}
+
