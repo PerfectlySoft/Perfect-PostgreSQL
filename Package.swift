@@ -24,7 +24,7 @@ let package = Package(
     name: "PostgreSQL",
     targets: [],
     dependencies: [
-        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", majorVersion: 0, minor: 1)
+        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", versions: Version(0,0,0)..<Version(10,0,0))
     ],
     exclude: ["Sources/libpq"]
 )
@@ -33,7 +33,7 @@ let package = Package(
     name: "PostgreSQL",
     targets: [],
     dependencies: [
-        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", majorVersion: 0, minor: 1)
+        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", versions: Version(0,0,0)..<Version(10,0,0))
     ],
     exclude: ["Sources/libpq"]
 )
