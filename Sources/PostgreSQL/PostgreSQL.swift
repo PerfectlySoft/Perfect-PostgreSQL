@@ -133,7 +133,7 @@ public final class PGResult {
 	}
 	
     /// Field name for index value
-	public func fieldName(index index: Int) -> String? {
+	public func fieldName(index: Int) -> String? {
 	#if swift(>=3.0)
 		if let fn = PQfname(self.res!, Int32(index)) {
 			return String(validatingUTF8: fn) ?? ""
@@ -148,7 +148,7 @@ public final class PGResult {
 	}
 	
     /// Field type for index value
-	public func fieldType(index index: Int) -> Oid? {
+	public func fieldType(index: Int) -> Oid? {
 		let fn = PQftype(self.res!, Int32(index))
 		return fn
 	}
@@ -159,12 +159,12 @@ public final class PGResult {
 	}
 	
     /// test null field at row index for field index
-	public func fieldIsNull(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Bool {
+	public func fieldIsNull(tupleIndex: Int, fieldIndex: Int) -> Bool {
 		return 1 == PQgetisnull(self.res!, Int32(tupleIndex), Int32(fieldIndex))
 	}
 	
     /// return value for String field type with row and field indexes provided
-	public func getFieldString(tupleIndex tupleIndex: Int, fieldIndex: Int) -> String? {
+	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
 	#if swift(>=3.0)
 		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
 			return nil
@@ -179,7 +179,7 @@ public final class PGResult {
 	}
 	
     /// return value for Int field type with row and field indexes provided
-	public func getFieldInt(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int? {
+	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -187,7 +187,7 @@ public final class PGResult {
 	}
 	
     /// return value for Bool field type with row and field indexes provided
-	public func getFieldBool(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Bool? {
+	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -195,7 +195,7 @@ public final class PGResult {
 	}
 	
     /// return value for Int8 field type with row and field indexes provided
-	public func getFieldInt8(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int8? {
+	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -203,7 +203,7 @@ public final class PGResult {
 	}
 	
     /// return value for Int16 field type with row and field indexes provided
-	public func getFieldInt16(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int16? {
+	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -211,7 +211,7 @@ public final class PGResult {
 	}
 	
     /// return value for Int32 field type with row and field indexes provided
-	public func getFieldInt32(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int32? {
+	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -219,7 +219,7 @@ public final class PGResult {
 	}
 	
     /// return value for Int64 field type with row and field indexes provided
-	public func getFieldInt64(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Int64? {
+	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -227,7 +227,7 @@ public final class PGResult {
 	}
 	
     /// return value for Double field type with row and field indexes provided
-	public func getFieldDouble(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Double? {
+	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -235,7 +235,7 @@ public final class PGResult {
 	}
 	
     /// return value for Float field type with row and field indexes provided
-	public func getFieldFloat(tupleIndex tupleIndex: Int, fieldIndex: Int) -> Float? {
+	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
@@ -243,7 +243,7 @@ public final class PGResult {
 	}
 	
     /// return value for Blob field type with row and field indexes provided
-	public func getFieldBlob(tupleIndex tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
+	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
 	#if swift(>=3.0)
 		guard let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))) else {
 			return nil
@@ -316,13 +316,13 @@ public final class PGConnection {
 	}
 	
     /// Submits a command to the server and waits for the result.
-	public func exec(statement statement: String) -> PGResult {
+	public func exec(statement: String) -> PGResult {
 		return PGResult(PQexec(self.conn, statement))
 	}
 	
 	// !FIX! does not handle binary data
     /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
-	public func exec(statement statement: String, params: [String]) -> PGResult {
+	public func exec(statement: String, params: [String]) -> PGResult {
 		var asStrings = [String]()
 		for item in params {
 			asStrings.append(String(item))
