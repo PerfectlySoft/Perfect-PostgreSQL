@@ -86,8 +86,8 @@ public final class PGResult {
 	
     /// clear and disconnect result object
 	public func clear() {
-		if self.res != nil {
-			PQclear(self.res!)
+		if let res = self.res {
+			PQclear(res)
 			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
@@ -100,7 +100,10 @@ public final class PGResult {
 	
     /// Result Status Value
 	public func status() -> StatusType {
-		let s = PQresultStatus(self.res!)
+        guard let res = self.res else {
+            return .Unknown
+        }
+		let s = PQresultStatus(res)
 		switch(s.rawValue) {
 		case PGRES_EMPTY_QUERY.rawValue:
 			return .EmptyQuery
@@ -124,12 +127,18 @@ public final class PGResult {
 	
     /// Result Status Message
 	public func errorMessage() -> String {
-		return String(validatingUTF8: PQresultErrorMessage(self.res!)) ?? ""
+        guard let res = self.res else {
+            return ""
+        }
+		return String(validatingUTF8: PQresultErrorMessage(res)) ?? ""
 	}
 	
     /// Result field count
 	public func numFields() -> Int {
-		return Int(PQnfields(self.res!))
+        guard let res = self.res else {
+            return 0
+        }
+		return Int(PQnfields(res))
 	}
 	
     /// Field name for index value
@@ -155,7 +164,10 @@ public final class PGResult {
 	
     /// number of rows (Tuples) returned in result
 	public func numTuples() -> Int {
-		return Int(PQntuples(self.res!))
+        guard let res = self.res else {
+            return 0
+        }
+		return Int(PQntuples(res))
 	}
 	
     /// test null field at row index for field index
