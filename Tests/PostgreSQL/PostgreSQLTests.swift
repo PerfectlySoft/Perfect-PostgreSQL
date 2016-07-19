@@ -38,7 +38,7 @@ class PostgreSQLTests: XCTestCase {
 		let p = PGConnection()
 		let status = p.connectdb(postgresTestConnInfo)
 		
-		XCTAssert(status == .OK)
+		XCTAssert(status == .ok)
 		print(p.errorMessage())
 		p.finish()
 	}
@@ -46,10 +46,10 @@ class PostgreSQLTests: XCTestCase {
 	func testExec() {
 		let p = PGConnection()
 		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .OK)
+		XCTAssert(status == .ok)
 		
 		let res = p.exec(statement: "select * from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK)
+		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
 		
 		let num = res.numFields()
 		XCTAssert(num > 0)
@@ -65,10 +65,10 @@ class PostgreSQLTests: XCTestCase {
 	func testExecGetValues() {
         let p = PGConnection()
         let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .OK)
+		XCTAssert(status == .ok)
 		// name, oid, integer, boolean
 		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK)
+		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
 		
 		let num = res.numTuples()
 		XCTAssert(num > 0)
@@ -87,10 +87,10 @@ class PostgreSQLTests: XCTestCase {
 	func testExecGetValuesParams() {
         let p = PGConnection()
         let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .OK)
+		XCTAssert(status == .ok)
 		// name, oid, integer, boolean
 		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
-		XCTAssertEqual(res.status(), PGResult.StatusType.TuplesOK, res.errorMessage())
+		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
 		
 		let num = res.numTuples()
 		XCTAssert(num > 0)
