@@ -74,7 +74,7 @@ class PostgreSQLTests: XCTestCase {
 		XCTAssert(num > 0)
 		for x in 0..<num {
 			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue(c1?.characters.count > 0)
+			XCTAssertTrue((c1?.characters.count)! > 0)
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
@@ -96,7 +96,7 @@ class PostgreSQLTests: XCTestCase {
 		XCTAssert(num > 0)
 		for x in 0..<num {
 			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue(c1?.characters.count > 0)
+			XCTAssertTrue((c1?.characters.count)! > 0)
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
