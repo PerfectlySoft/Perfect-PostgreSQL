@@ -10,7 +10,7 @@ Ensure you have installed and activated the latest Swift 3.0 tool chain.
 
 ## OS X Build Notes
 
-This package requires the [Home Brew](http://brew.sh) build of posstgres.
+This package requires the [Home Brew](http://brew.sh) build of PostgreSQL.
 
 To install Home Brew:
 
