@@ -109,16 +109,9 @@ public final class PGResult {
 	
     /// Field name for index value
 	public func fieldName(index: Int) -> String? {
-	#if swift(>=3.0)
 		if let fn = PQfname(self.res!, Int32(index)) {
 			return String(validatingUTF8: fn) ?? ""
 		}
-	#else
-		let fn = PQfname(self.res!, Int32(index))
-		if nil != fn {
-			return String(validatingUTF8: fn) ?? ""
-		}
-	#endif
 		return nil
 	}
 	
@@ -143,16 +136,9 @@ public final class PGResult {
 	
     /// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
-	#if swift(>=3.0)
 		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
 			return nil
 		}
-	#else
-		let v = PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))
-		guard nil != v else {
-			return nil
-		}
-	#endif
 		return String(validatingUTF8: v)
 	}
 	
@@ -222,16 +208,9 @@ public final class PGResult {
 	
     /// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
-	#if swift(>=3.0)
 		guard let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))) else {
 			return nil
 		}
-	#else
-		let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex)))
-		guard nil != ip else {
-			return nil
-		}
-	#endif
 		let length = Int(PQgetlength(self.res!, Int32(tupleIndex), Int32(fieldIndex)))
 		var ret = [Int8]()
 		for idx in 0..<length {
@@ -317,7 +296,7 @@ public final class PGConnection {
 			var aa = Array<UInt8>(utf8)
 			aa.append(0)
 			temps.append(aa)
-			values[idx] = UnsafePointer<Int8>(temps.last!)
+			values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
 		}
 		
 		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, nil, nil, Int32(0))
