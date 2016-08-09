@@ -305,8 +305,101 @@ public final class PGConnection {
 }
 
 
+/// Wraps PGResult in an iterable object that also has subscript access to individual rows
+class PGResultSet: Sequence, IteratorProtocol {
+    var count:Int
+    let res :PGResult
+    
+    /// Pass in a PGResult to get access to Sequence and IteratorProtocol conformance, use of for loops, and subscript access to rows by index
+    init(res:PGResult) {
+        self.res = res
+        count = 0
+    }
+    ///provides basic index based retrieval of rows in result set
+    func getRow(rowIndex: Int) -> PGRow? {
+        
+        return PGRow(fromResultSet: self, row: rowIndex)
+    }
+    
+    ///returns next row in the result set. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
+    public func next() -> PGRow? {
+        if (count == res.numTuples()) {
+            return nil
+        } else {
+            defer { count += 1}
+            return PGRow(fromResultSet: self, row: count)
+        }
+    }
+    /// returns specified row by index
+    public subscript(rowIndex: Int) -> PGRow? {
+        return getRow(rowIndex: rowIndex)
+        
+    }
+}
 
-
-
+///Provides Sequence and Iterator access to the row data from a PGResultSet
+class PGRow: Sequence, IteratorProtocol {
+    var rowPosition:Int
+    let row:Int
+    let res:PGResult
+    var fields = [String:Any?]()
+    
+    ///access fields from a specified row in PGResultSet
+    init(fromResultSet set: PGResultSet, row:Int){
+        self.res = set.res
+        self.row = row
+        rowPosition = 0
+        
+        while let f = self.next() {
+            
+            if(res.fieldIsNull(tupleIndex: self.row, fieldIndex: rowPosition-1)) {
+                fields[f.0] = nil
+            } else {
+                fields[f.0] = f.2
+            }
+            
+        }
+    }
+    
+    ///Returns a Tuple made up of (fieldName:String, fieldType:Int, fieldValue:Any?) for a field specified by index. This method attempts to return proper type thru use of fieldType Integer, but needs a more complete reference to the field type list to be complete
+    func getFieldTuple(fieldIndex: Int)-> (String, Int, Any?)? {
+        if(res.fieldIsNull(tupleIndex: row, fieldIndex: fieldIndex)) {
+            return (res.fieldName(index: rowPosition)!, Int(res.fieldType(index: fieldIndex)!), nil)
+        } else {
+            let fieldtype = Int(res.fieldType(index: fieldIndex)!)
+            switch fieldtype {
+            case 23:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldInt(tupleIndex: row, fieldIndex: fieldIndex))
+            case 16:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldBool(tupleIndex: row, fieldIndex: fieldIndex))
+            default:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldString(tupleIndex: row, fieldIndex: fieldIndex))
+            }
+            
+        }
+    }
+    ///returns next field in the row. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
+    public func next() -> (String,Int,Any?)? {
+        let curIndex = rowPosition
+        if (curIndex >= res.numFields()) {
+            return nil
+        } else {
+            rowPosition += 1
+            return getFieldTuple(fieldIndex: curIndex)
+        }
+    }
+    
+    /// subscript by field Index, returns field Tuple
+    public subscript(fieldIndex: Int) -> (String,Int,Any?)? {
+        return getFieldTuple(fieldIndex: fieldIndex)
+        
+    }
+    
+    /// subscript by field Name, returns field Tuple
+    public subscript(fieldName: String) -> Any? {
+        return fields[fieldName]
+        
+    }
+}
 
 
