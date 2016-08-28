@@ -1,7 +1,6 @@
 import XCTest
+@testable import PostgreSQLTests
 
-import PostgreSQLTestSuite
-
-var tests = [XCTestCaseEntry]()
-tests += PostgreSQLTestSuite.allTests()
-XCTMain(tests)
+XCTMain([
+	testCase(PostgreSQLTests.allTests),
+])
