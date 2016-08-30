@@ -156,6 +156,55 @@ class PostgreSQLTests: XCTestCase {
         p.finish()
     }
     
+    func testExecUseFieldNameSubscript() {
+        let p = PGConnection()
+        let status = p.connectdb(postgresTestConnInfo)
+        XCTAssert(status == .ok)
+        // name, oid, integer, boolean
+        let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
+        XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
+        
+        let num = res.numTuples()
+        XCTAssert(num > 0)
+        
+        while let row = res.next() {
+            
+            let c1 = row["datname"] as? String
+            XCTAssertTrue((c1?.characters.count)! > 0)
+            let c2 = row["datdba"] as? Int
+            let c3 = row["encoding"] as? Int
+            let c4 = row["datistemplate"] as? Bool
+            print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
+            
+        }
+        res.clear()
+        p.finish()
+    }
+    
+    func testExecUseFieldIndexSubscript() {
+        let p = PGConnection()
+        let status = p.connectdb(postgresTestConnInfo)
+        XCTAssert(status == .ok)
+        // name, oid, integer, boolean
+        let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
+        XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
+        
+        let num = res.numTuples()
+        XCTAssert(num > 0)
+        
+        while let row = res.next() {
+            
+            let c1 = row[0] as? String
+            XCTAssertTrue((c1?.characters.count)! > 0)
+            let c2 = row[1] as? Int
+            let c3 = row[2] as? Int
+            let c4 = row[3] as? Bool
+            print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
+            
+        }
+        res.clear()
+        p.finish()
+    }
 }
 
 extension PostgreSQLTests {

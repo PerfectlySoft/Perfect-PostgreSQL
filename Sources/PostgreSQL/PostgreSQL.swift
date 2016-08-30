@@ -436,13 +436,13 @@ public struct PGRow: Sequence, IteratorProtocol {
         }
     }
     
-    /// subscript by field Index, returns field Tuple
-    public subscript(fieldIndex: Int) -> (String,Int,Any?)? {
-        return getFieldTuple(fieldIndex)
+    /// subscript by field Index, returns field value
+    public subscript(fieldIndex: Int) -> Any? {
+        return getFieldValue(fieldIndex)
         
     }
     
-    /// subscript by field Name, returns field Tuple
+    /// subscript by field Name, returns field value
     public subscript(fieldName: String) -> Any? {
         return fields[fieldName]
         
