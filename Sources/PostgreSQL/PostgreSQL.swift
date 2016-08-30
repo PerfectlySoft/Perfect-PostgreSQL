@@ -21,7 +21,7 @@
 import libpq
 
 /// result object
-public final class PGResult {
+public final class PGResult: Sequence, IteratorProtocol  {
 	
     /// Result Status enum
 	public enum StatusType {
@@ -34,7 +34,7 @@ public final class PGResult {
 		case singleTuple
 		case unknown
 	}
-	
+    var count:Int = 0
 	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
 	
 	init(_ res: OpaquePointer?) {
@@ -218,6 +218,30 @@ public final class PGResult {
 		}
 		return ret
 	}
+    
+    ///provides basic index based retrieval of rows in result set
+    public func getRow(_ rowIndex: Int) -> PGRow? {
+        
+        return PGRow(fromResult: self, row: rowIndex)
+    }
+    
+    ///returns next row in the result set. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
+    public func next() -> PGRow? {
+        if (count == self.numTuples()) {
+            count = 0
+            return nil
+        } else {
+            defer { count += 1}
+            return PGRow(fromResult: self, row: count)
+        }
+    }
+    
+    /// returns specified row by index
+    public subscript(rowIndex: Int) -> PGRow? {
+        return getRow(rowIndex)
+        
+    }
+    
 }
 
 /// connection management class
@@ -304,9 +328,93 @@ public final class PGConnection {
 	}
 }
 
-
-
-
-
+///Provides Sequence and Iterator access to the row data from a PGResult
+public struct PGRow: Sequence, IteratorProtocol {
+    
+    var rowPosition:Int
+    let row:Int
+    let res:PGResult
+    var fields = [String:Any?]()
+    
+    ///access fields from a specified row in PGResult
+    init(fromResult set: PGResult, row:Int){
+        self.res = set
+        self.row = row
+        rowPosition = 0
+        
+        while let f = self.next() {
+            
+            if(res.fieldIsNull(tupleIndex: self.row, fieldIndex: rowPosition-1)) {
+                fields[f.0] = nil
+            } else {
+                fields[f.0] = f.2
+            }
+            
+        }
+    }
+    
+    ///Returns a Tuple made up of (fieldName:String, fieldType:Int, fieldValue:Any?) for a field specified by index. This method attempts to return proper type thru use of fieldType Integer, but needs a more complete reference to the field type list to be complete
+    func getFieldTuple(_ fieldIndex: Int)-> (String, Int, Any?) {
+        if(res.fieldIsNull(tupleIndex: row, fieldIndex: fieldIndex)) {
+            return (res.fieldName(index: rowPosition)!, Int(res.fieldType(index: fieldIndex)!), nil)
+        } else {
+            let fieldtype = Int(res.fieldType(index: fieldIndex)!)
+            switch fieldtype {
+            case 700, 701:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldFloat(tupleIndex: row, fieldIndex: fieldIndex))
+            case 21, 22, 23, 26, 27, 28, 29, 30:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldInt(tupleIndex: row, fieldIndex: fieldIndex))
+            case 20:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldInt8(tupleIndex: row, fieldIndex: fieldIndex))
+            
+            case 16:
+                return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), res.getFieldBool(tupleIndex: row, fieldIndex: fieldIndex))
+            default:
+                if let fieldString = res.getFieldString(tupleIndex: row, fieldIndex:fieldIndex) {
+                    return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), fieldString)
+                } else {
+                    return (res.fieldName(index: fieldIndex)!, Int(res.fieldType(index: fieldIndex)!), "")
+                }
+            }
+            
+        }
+    }
+    
+    func getFieldValue(_ fieldIndex: Int) -> Any? {
+        return getFieldTuple(fieldIndex).2
+    }
+    
+    func getFieldName(_ fieldIndex: Int) -> String? {
+        return res.fieldName(index: fieldIndex)
+    }
+    
+    func getFieldType(_ fieldIndex: Int) -> Int? {
+        return Int(res.fieldType(index: fieldIndex)!)
+    }
+    
+    ///returns next field in the row. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
+    public mutating func next() -> (String,Int,Any?)? {
+        let curIndex = rowPosition
+        if (curIndex >= res.numFields()) {
+            rowPosition = 0
+            return nil
+        } else {
+            rowPosition += 1
+            return getFieldTuple(curIndex)
+        }
+    }
+    
+    /// subscript by field Index, returns field value
+    public subscript(fieldIndex: Int) -> Any? {
+        return getFieldValue(fieldIndex)
+        
+    }
+    
+    /// subscript by field Name, returns field value
+    public subscript(fieldName: String) -> Any? {
+        return fields[fieldName]
+        
+    }
+}
 
 
