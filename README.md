@@ -106,6 +106,50 @@ public func usePostgres() -> PGResult? {
 ```
 
 Use the queryResult to access the row data using PGRow
+Here is a function that uses several different methods to view the row contents
+
+```swift
+public func useRows(result: PGResult?) {
+    //get rows
+    guard result != nil else {
+        return
+    }
+    
+     for row:PGRow in result! {
+        for f in row {
+            //print field tuples
+            //this returns a tuple (fieldName:String, fieldType:Int, fieldValue:Any?)
+            print("Field: \(f)")
+        }
+     
+     }
+    
+    for row:PGRow in result! {
+    
+        //raw description
+        Log.info(message: "Row description: \(row)")
+        
+        //retrieve field values by name
+        Log.info(message: "row( datname: \(row["datname"]), datdba: \(row["datdba"]), encoding: \(row["encoding"]), datistemplate: \(row["datistemplate"])")
+        
+        //retrieve field values by index
+        Log.info(message: "row( datname: \(row[0]), datdba: \(row[1]), encoding: \(row[2]), datistemplate: \(row[3])")
+        
+        // field values are properly typed, but you have to cast to tell the compiler what we have
+        let c1 = row["datname"] as? String
+        let c2 = row["datdba"] as? Int
+        let c3 = row["encoding"] as? Int
+        let c4 = row["datistemplate"] as? Bool
+        print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
+        
+    }
+}
+```
+
+Rows can also be accessed by index using subscript syntax:
+```swift
+ let secondRow = result[1]
+```
 
 
 Additionally, there are more complex Statement constructors, and potential object designs which can further abstract the process of interacting with your data.
