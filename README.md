@@ -64,3 +64,48 @@ Add this project as a dependency in your Package.swift file.
 ```
 .Package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", versions: Version(0,0,0)..<Version(10,0,0))
 ```
+
+## QuickStart
+
+Add a file to your project, making sure that it is stored in the Sources directory of your file structure. Lets name it pg_quickstart.swift for example.
+
+Import required libraries:
+```
+import PostgreSQL
+```
+
+Setup the credentials for your connection: 
+```
+let postgresTestConnInfo = "host=localhost dbname=postgres"
+
+let dataPG = PGConnection()
+```
+
+This function will setup and use a PGConnection
+
+```
+public func usePostgres() -> PGResult? {
+    
+    // need to make sure something is available.
+    guard dataPG.connectdb(postgresTestConnInfo) == PGConnection.StatusType.ok else {
+        Log.info(message: "Failure connecting to data server \(postgresTestConnInfo)")
+        
+        return nil
+    }
+
+    defer {
+        dataPG.close()  // defer ensures we close our db connection at the end of this request
+    }
+    // setup basic query
+    //retrieving fields with type name, oid, integer, boolean
+    let queryResult:PGResult = dataPG.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
+    
+    defer { queryResult.clear() }
+    return queryResult
+}
+```
+
+Use the queryResult to access the row data using PGRow
+
+
+Additionally, there are more complex Statement constructors, and potential object designs which can further abstract the process of interacting with your data.
