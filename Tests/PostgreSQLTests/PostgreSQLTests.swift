@@ -213,7 +213,11 @@ extension PostgreSQLTests {
             ("testConnect", testConnect),
             ("testExec", testExec),
             ("testExecGetValues", testExecGetValues),
-            ("testExecGetValuesParams", testExecGetValuesParams)
+            ("testExecGetValuesParams", testExecGetValuesParams),
+            ("testExecGetRow", testExecGetRow),
+            ("testExecGetRowAgain", testExecGetRowAgain),
+            ("testExecUseFieldNameSubscript", testExecUseFieldNameSubscript),
+            ("testExecUseFieldIndexSubscript", testExecUseFieldIndexSubscript)
         ]
     }
 }

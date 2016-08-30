@@ -228,6 +228,7 @@ public final class PGResult: Sequence, IteratorProtocol  {
     ///returns next row in the result set. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
     public func next() -> PGRow? {
         if (count == self.numTuples()) {
+            count = 0
             return nil
         } else {
             defer { count += 1}
@@ -327,41 +328,7 @@ public final class PGConnection {
 	}
 }
 
-/*
-/// Wraps PGResult in an iterable object that also has subscript access to individual rows
-class PGResult: Sequence, IteratorProtocol {
-   var count:Int
-    let res :PGResult
-    
-    /// Pass in a PGResult to get access to Sequence and IteratorProtocol conformance, use of for loops, and subscript access to rows by index
-    init(res:PGResult) {
-        self.res = res
-        count = 0
-    }
- 
-    ///provides basic index based retrieval of rows in result set
-    func getRow(_ rowIndex: Int) -> PGRow? {
-        
-        return PGRow(fromResultSet: self, row: rowIndex)
-    }
-    
-    ///returns next row in the result set. Required for Sequence and IteratorProtocol conformance. Allows use of for - in syntax without having to iterate thru a range of index numbers
-    func next() -> PGRow? {
-        if (count == res.numTuples()) {
-            return nil
-        } else {
-            defer { count += 1}
-            return PGRow(fromResultSet: self, row: count)
-        }
-    }
-    /// returns specified row by index
-    public subscript(rowIndex: Int) -> PGRow? {
-        return getRow(rowIndex)
-        
-    }
-}
-*/
-///Provides Sequence and Iterator access to the row data from a PGResultSet
+///Provides Sequence and Iterator access to the row data from a PGResult
 public struct PGRow: Sequence, IteratorProtocol {
     
     var rowPosition:Int
@@ -369,7 +336,7 @@ public struct PGRow: Sequence, IteratorProtocol {
     let res:PGResult
     var fields = [String:Any?]()
     
-    ///access fields from a specified row in PGResultSet
+    ///access fields from a specified row in PGResult
     init(fromResult set: PGResult, row:Int){
         self.res = set
         self.row = row
@@ -429,6 +396,7 @@ public struct PGRow: Sequence, IteratorProtocol {
     public mutating func next() -> (String,Int,Any?)? {
         let curIndex = rowPosition
         if (curIndex >= res.numFields()) {
+            rowPosition = 0
             return nil
         } else {
             rowPosition += 1
