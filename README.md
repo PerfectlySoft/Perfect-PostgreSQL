@@ -70,12 +70,12 @@ Add this project as a dependency in your Package.swift file.
 Add a file to your project, making sure that it is stored in the Sources directory of your file structure. Lets name it pg_quickstart.swift for example.
 
 Import required libraries:
-```
+```swift
 import PostgreSQL
 ```
 
 Setup the credentials for your connection: 
-```
+```swift
 let postgresTestConnInfo = "host=localhost dbname=postgres"
 
 let dataPG = PGConnection()
@@ -83,7 +83,7 @@ let dataPG = PGConnection()
 
 This function will setup and use a PGConnection
 
-```
+```swift
 public func usePostgres() -> PGResult? {
     
     // need to make sure something is available.
