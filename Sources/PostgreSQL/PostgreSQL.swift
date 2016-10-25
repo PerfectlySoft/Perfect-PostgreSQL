@@ -17,7 +17,7 @@
 //===----------------------------------------------------------------------===//
 //
 
-
+import Foundation
 import libpq
 
 /// result object
@@ -208,15 +208,61 @@ public final class PGResult {
 	
     /// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
-		guard let ip = UnsafePointer<Int8>(PQgetvalue(self.res!, Int32(tupleIndex), Int32(fieldIndex))) else {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
-		let length = Int(PQgetlength(self.res!, Int32(tupleIndex), Int32(fieldIndex)))
+		let sc = s.utf8
+		guard sc.count % 2 == 0, sc.count >= 2, String(sc[sc.startIndex...sc.index(after: sc.startIndex)]) == "\\x" else {
+			return nil
+		}
 		var ret = [Int8]()
-		for idx in 0..<length {
-			ret.append(ip[idx])
+		var index = sc.index(sc.startIndex, offsetBy: 2)
+		while index != sc.endIndex {
+			let c1 = Int8(sc[index])
+			index = sc.index(after: index)
+			let c2 = Int8(sc[index])
+			guard let byte = byteFromHexDigits(one: c1, two: c2) else {
+				return nil
+			}
+			ret.append(byte)
+			index = sc.index(after: index)
 		}
 		return ret
+	}
+	
+	private func byteFromHexDigits(one c1v: Int8, two c2v: Int8) -> Int8? {
+		
+		let capA: Int8 = 65
+		let capF: Int8 = 70
+		let lowA: Int8 = 97
+		let lowF: Int8 = 102
+		let zero: Int8 = 48
+		let nine: Int8 = 57
+		
+		var newChar = Int8(0)
+		
+		if c1v >= capA && c1v <= capF {
+			newChar = c1v - capA + 10
+		} else if c1v >= lowA && c1v <= lowF {
+			newChar = c1v - lowA + 10
+		} else if c1v >= zero && c1v <= nine {
+			newChar = c1v - zero
+		} else {
+			return nil
+		}
+		
+		newChar *= 16
+		
+		if c2v >= capA && c2v <= capF {
+			newChar += c2v - capA + 10
+		} else if c2v >= lowA && c2v <= lowF {
+			newChar += c2v - lowA + 10
+		} else if c2v >= zero && c2v <= nine {
+			newChar += c2v - zero
+		} else {
+			return nil
+		}
+		return newChar
 	}
 }
 
@@ -279,27 +325,62 @@ public final class PGConnection {
 	
 	// !FIX! does not handle binary data
     /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
-	public func exec(statement: String, params: [String]) -> PGResult {
-		var asStrings = [String]()
-		for item in params {
-			asStrings.append(String(item))
-		}
-		let count = asStrings.count
+	public func exec(statement: String, params: [Any]) -> PGResult {
+		let count = params.count
 		let values = UnsafeMutablePointer<UnsafePointer<Int8>?>.allocate(capacity: count)
+		let types = UnsafeMutablePointer<Oid>.allocate(capacity: count)
+		let lengths = UnsafeMutablePointer<Int32>.allocate(capacity: count)
+		let formats = UnsafeMutablePointer<Int32>.allocate(capacity: count)
 		defer {
 			values.deinitialize(count: count) ; values.deallocate(capacity: count)
+			types.deinitialize(count: count) ; types.deallocate(capacity: count)
+			lengths.deinitialize(count: count) ; lengths.deallocate(capacity: count)
+			formats.deinitialize(count: count) ; formats.deallocate(capacity: count)
 		}
-		var temps = [Array<UInt8>]()
+		var asStrings = [String]()
+		var temps = [[UInt8]]()
 		for idx in 0..<count {
-			let s = asStrings[idx]
-			let utf8 = s.utf8
-			var aa = Array<UInt8>(utf8)
-			aa.append(0)
-			temps.append(aa)
-			values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+			switch params[idx] {
+			case let s as String:
+				var aa = [UInt8](s.utf8)
+				aa.append(0)
+				temps.append(aa)
+				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				types[idx] = 0
+				lengths[idx] = 0
+				formats[idx] = 0
+			case let a as [UInt8]:
+				let length = Int32(a.count)
+				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				types[idx] = 17
+				lengths[idx] = length
+				formats[idx] = 1
+			case let a as [Int8]:
+				let length = Int32(a.count)
+				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				types[idx] = 17
+				lengths[idx] = length
+				formats[idx] = 1
+			case let d as Data:
+				let a = d.map { $0 }
+				let length = Int32(a.count)
+				temps.append(a)
+				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				types[idx] = 17
+				lengths[idx] = length
+				formats[idx] = 1
+			default:
+				asStrings.append("\(params[idx])")
+				var aa = [UInt8](asStrings.last!.utf8)
+				aa.append(0)
+				temps.append(aa)
+				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				types[idx] = 0
+				lengths[idx] = 0
+				formats[idx] = 0
+			}
 		}
-		
-		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, nil, nil, Int32(0))
+		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
 		return PGResult(r)
 	}
 }

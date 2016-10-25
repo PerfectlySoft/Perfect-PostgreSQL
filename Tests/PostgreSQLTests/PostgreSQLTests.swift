@@ -105,6 +105,46 @@ class PostgreSQLTests: XCTestCase {
 		res.clear()
 		p.finish()
 	}
+	
+	func testAnyBinds() {
+		let p = PGConnection()
+		let status = p.connectdb(postgresTestConnInfo)
+		XCTAssert(status == .ok)
+		// name, oid, integer, boolean
+		_ = p.exec(statement: "DROP TABLE IF EXISTS films")
+		
+		for _ in 0..<200 {
+			
+			let res = p.exec(statement: "CREATE TABLE films (code char(5) PRIMARY KEY, title varchar(40) NOT NULL, did integer NOT NULL, date_prod date, kind1 bytea, kind2 bytea)")
+			XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
+			
+			let u = "ABCDEFGH".utf8.map { Int8($0) }
+			do {
+				let res = p.exec(statement: "INSERT INTO films (code, title, did, kind1, kind2) VALUES ($1, $2, $3, $4, $5)", params: [1, "film title", 42, Data(bytes: u, count: u.count), u])
+				XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
+			}
+			
+			do {
+				let res = p.exec(statement: "SELECT code, title, did, kind1, kind2 FROM films")
+				XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
+				let num = res.numTuples()
+				XCTAssert(num == 1)
+				
+				let c1 = res.getFieldString(tupleIndex: 0, fieldIndex: 0)
+				XCTAssert(c1 == "1    ")
+				let c2 = res.getFieldString(tupleIndex: 0, fieldIndex: 1)
+				XCTAssert(c2 == "film title")
+				let c3 = res.getFieldInt(tupleIndex: 0, fieldIndex: 2)
+				XCTAssert(c3 == 42)
+				let c4 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 3)
+				XCTAssert(c4! == u)
+				let c5 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 4)
+				XCTAssert(c5! == u)
+			}
+			_ = p.exec(statement: "DROP TABLE films")
+		}
+		p.finish()
+	}
 }
 
 extension PostgreSQLTests {
@@ -113,7 +153,8 @@ extension PostgreSQLTests {
             ("testConnect", testConnect),
             ("testExec", testExec),
             ("testExecGetValues", testExecGetValues),
-            ("testExecGetValuesParams", testExecGetValuesParams)
+            ("testExecGetValuesParams", testExecGetValuesParams),
+            ("testAnyBinds", testAnyBinds)
         ]
     }
 }
