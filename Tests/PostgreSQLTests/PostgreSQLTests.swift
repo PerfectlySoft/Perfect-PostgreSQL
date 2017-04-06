@@ -79,7 +79,7 @@ class PostgreSQLTests: XCTestCase {
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
+			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
 		}
 		res.clear()
 		p.finish()
@@ -101,7 +101,7 @@ class PostgreSQLTests: XCTestCase {
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(c1) c2=\(c2) c3=\(c3) c4=\(c4)")
+			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
 		}
 		res.clear()
 		p.finish()
@@ -110,7 +110,9 @@ class PostgreSQLTests: XCTestCase {
 	func testAnyBinds() {
 		let p = PGConnection()
 		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
+		guard case .ok = status else {
+			return XCTAssert(status == .ok)
+		}
 		// name, oid, integer, boolean
 		_ = p.exec(statement: "DROP TABLE IF EXISTS films")
 		
@@ -121,7 +123,8 @@ class PostgreSQLTests: XCTestCase {
 			
 			let u = "ABCDEFGH".utf8.map { Int8($0) }
 			do {
-				let res = p.exec(statement: "INSERT INTO films (code, title, did, kind1, kind2) VALUES ($1, $2, $3, $4, $5)", params: [1, "film title", 42, Data(bytes: u, count: u.count), u])
+				let res = p.exec(statement: "INSERT INTO films (code, title, did, kind1, kind2) VALUES ($1, $2, $3, $4, $5)",
+				                 params: [1, "film title", 42, Data(bytes: u, count: u.count), u])
 				XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
 			}
 			
