@@ -325,7 +325,7 @@ public final class PGConnection {
 	
 	// !FIX! does not handle binary data
     /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
-	public func exec(statement: String, params: [Any]) -> PGResult {
+	public func exec(statement: String, params: [Any?]) -> PGResult {
 		let count = params.count
 		let values = UnsafeMutablePointer<UnsafePointer<Int8>?>.allocate(capacity: count)
 		let types = UnsafeMutablePointer<Oid>.allocate(capacity: count)
@@ -370,14 +370,18 @@ public final class PGConnection {
 				lengths[idx] = length
 				formats[idx] = 1
 			default:
-				asStrings.append("\(params[idx])")
-				var aa = [UInt8](asStrings.last!.utf8)
-				aa.append(0)
-				temps.append(aa)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
-				types[idx] = 0
-				lengths[idx] = 0
-				formats[idx] = 0
+        if let pm = params[idx] {
+          asStrings.append("\(pm)")
+          var aa = [UInt8](asStrings.last!.utf8)
+          aa.append(0)
+          temps.append(aa)
+          values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+        } else {
+          values[idx] = nil
+        }//end if
+        types[idx] = 0
+        lengths[idx] = 0
+        formats[idx] = 0
 			}
 		}
 		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
