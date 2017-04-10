@@ -136,10 +136,13 @@ public final class PGResult {
 	
     /// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
-		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
+		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)),
+      let s = String(validatingUTF8: v),
+      !s.isEmpty
+      else {
 			return nil
-		}
-		return String(validatingUTF8: v)
+    }//end guard
+    return s
 	}
 	
     /// return value for Int field type with row and field indexes provided
