@@ -266,6 +266,12 @@ public final class PGResult {
 	}
 }
 
+public struct PGNotification {
+	public let pid: Int
+	public let channel: String
+	public let extra: String
+}
+
 /// connection management class
 public final class PGConnection {
 	
@@ -386,6 +392,23 @@ public final class PGConnection {
 		}
 		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
 		return PGResult(r)
+	}
+
+	// consume the next available notification; if any!
+	public func notifies() -> PGNotification? {
+		PQconsumeInput(self.conn) // TODO: could this cause any issues?
+		guard let pgnotify = PQnotifies(self.conn) else {
+			return nil
+		}
+		var extra: String = ""
+		if(pgnotify.pointee.extra != nil) {
+			extra = String(cString: pgnotify.pointee.extra)
+		}
+		let notification = PGNotification(pid: Int(pgnotify.pointee.be_pid),
+			channel: String(cString: pgnotify.pointee.relname),
+			extra: extra)
+		PQfreemem(pgnotify)
+		return notification
 	}
 }
 

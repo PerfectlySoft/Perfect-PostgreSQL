@@ -149,6 +149,30 @@ class PostgreSQLTests: XCTestCase {
 		}
 		p.finish()
 	}
+
+	func testNotify() {
+		let p = PGConnection()
+		let status = p.connectdb(postgresTestConnInfo)
+		guard case .ok = status else {
+			return XCTAssert(status == .ok)
+		}
+		_ = p.exec(statement: "listen abc")
+		_ = p.exec(statement: "listen xyz")
+		var n = p.notifies()
+		XCTAssert(n == nil)
+		_ = p.exec(statement: "notify xyz")
+		_ = p.exec(statement: "notify abc, 'df'")
+		n = p.notifies()
+		XCTAssert(n != nil)
+		XCTAssert(n!.channel == "xyz")
+		XCTAssert(n!.extra == "")
+		n = p.notifies()
+		XCTAssert(n != nil)
+		XCTAssert(n!.channel == "abc")
+		XCTAssert(n!.extra == "df")
+		n = p.notifies()
+		XCTAssert(n == nil)
+	}
 }
 
 extension PostgreSQLTests {
