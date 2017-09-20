@@ -21,7 +21,7 @@ import PackageDescription
 
 #if os(OSX)
 let package = Package(
-    name: "PostgreSQL",
+    name: "PerfectPostgreSQL",
     targets: [],
     dependencies: [
         .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", majorVersion: 2, minor: 0)
@@ -30,7 +30,7 @@ let package = Package(
 )
 #else
 let package = Package(
-    name: "PostgreSQL",
+    name: "PerfectPostgreSQL",
     targets: [],
     dependencies: [
         .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq-linux.git", majorVersion: 2, minor: 0)
