@@ -23,7 +23,7 @@
 
 <p align="center">
     <a href="https://developer.apple.com/swift/" target="_blank">
-        <img src="https://img.shields.io/badge/Swift-3.0-orange.svg?style=flat" alt="Swift 3.0">
+        <img src="https://img.shields.io/badge/Swift-4.0-orange.svg?style=flat" alt="Swift 4.0">
     </a>
     <a href="https://developer.apple.com/swift/" target="_blank">
         <img src="https://img.shields.io/badge/Platforms-OS%20X%20%7C%20Linux%20-lightgray.svg?style=flat" alt="Platforms OS X | Linux">
@@ -44,7 +44,7 @@ This project provides a Swift wrapper around the libpq client library, enabling 
 
 This package builds with Swift Package Manager and is part of the [Perfect](https://github.com/PerfectlySoft/Perfect) project. It was written to be stand-alone and so does not require PerfectLib or any other components.
 
-Ensure you have installed and activated the latest Swift 3.0 tool chain.
+Ensure you have installed and activated the latest Swift 4.0 tool chain.
 
 
 ## Issues
@@ -56,7 +56,7 @@ If you find a mistake, bug, or any other helpful suggestion you'd like to make o
 A comprehensive list of open issues can be found at [http://jira.perfect.org:8080/projects/ISS/issues](http://jira.perfect.org:8080/projects/ISS/issues)
 
 
-## OS X Build Notes
+## macOS Build Notes
 
 This package requires the [Home Brew](http://brew.sh) build of PostgreSQL.
 
@@ -85,5 +85,9 @@ sudo apt-get install libpq-dev
 Add this project as a dependency in your Package.swift file.
 
 ```
-.Package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", majorVersion: 2, minor: 0)
+.Package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", majorVersion: 3)
 ```
+
+## Documentation
+
+For more information, please visit [perfect.org](http://www.perfect.org/docs/PostgreSQL.html).
