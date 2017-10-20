@@ -227,8 +227,8 @@ extension PerfectPostgreSQLTests {
             ("testExecGetValues", testExecGetValues),
             ("testExecGetValuesParams", testExecGetValuesParams),
             ("testAnyBinds", testAnyBinds),
-			("testEnsureStatusIsOk", testEnsureStatusIsOk),
-			("testExecute", testExecute),
+            ("testEnsureStatusIsOk", testEnsureStatusIsOk),
+            ("testExecute", testExecute),
             ("testTransaction", testTransaction)
         ]
     }
