@@ -183,11 +183,13 @@ class PerfectPostgreSQLTests: XCTestCase {
 		try! p.execute(statement: "CREATE TABLE planets (id INTEGER PRIMARY KEY, name TEXT)")
 		
 		// Exercise COMMIT
-		let exerciseCommitClosure: () throws -> () = {
+		let exerciseCommitClosure: () throws -> String = {
 			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [1, "Mercury"])
 			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [2, "Venus"])
+			return "I'm a value returned from the closure"
 		}
-		try! p.doWithTransaction(closure: exerciseCommitClosure)
+		let result: String = try! p.doWithTransaction(closure: exerciseCommitClosure)
+		XCTAssertEqual(result, "I'm a value returned from the closure")
 		
 		// Exercise ROLLBACK
 		let exerciseRollbackClosure: () throws -> () = {

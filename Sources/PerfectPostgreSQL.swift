@@ -437,14 +437,16 @@ public final class PGConnection {
 	///
 	/// - parameter closure: Block to be executed inside transaction
 	/// - throws: If the provided closure fails
-	public func doWithTransaction(closure: () throws -> ()) throws {
+	/// - returns: If successful then the return value from the `closure`
+	public func doWithTransaction<Result>(closure: () throws -> Result) throws -> Result {
 		try ensureStatusIsOk()
-		_ = try execute(statement: "BEGIN")
+		try execute(statement: "BEGIN")
 		do {
-			try closure()
-			_ = try execute(statement: "COMMIT")
+			let result: Result = try closure()
+			try execute(statement: "COMMIT")
+			return result
 		} catch let e {
-			_ = try execute(statement: "ROLLBACK")
+			try execute(statement: "ROLLBACK")
 			throw e
 		}
 	}
