@@ -149,6 +149,74 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 		p.finish()
 	}
+
+	func testEnsureStatusIsOk() {
+		let p = PGConnection()
+		XCTAssertThrowsError(try p.ensureStatusIsOk())
+		_ =  p.connectdb(postgresTestConnInfo)
+		XCTAssertNoThrow(try p.ensureStatusIsOk())
+		p.finish()
+		XCTAssertThrowsError(try p.ensureStatusIsOk())
+	}
+	
+	func testExecute() {
+		let p = PGConnection()
+		let status = p.connectdb(postgresTestConnInfo)
+		XCTAssert(status == .ok)
+		
+		// Exercise with statements that executes successfully
+		XCTAssertNoThrow(try p.execute(statement: "SELECT 3 * 4"))
+		XCTAssertNoThrow(try p.execute(statement: ""))
+		
+		// Exercise with statements that fails
+		XCTAssertThrowsError(try p.execute(statement: "INVALID_SQL_GARBAGE"))
+
+		p.finish()
+	}
+	
+	func testTransaction() {
+		// Setup
+		let p = PGConnection()
+		let status = p.connectdb(postgresTestConnInfo)
+		XCTAssert(status == .ok)
+		try! p.execute(statement: "DROP TABLE IF EXISTS planets")
+		try! p.execute(statement: "CREATE TABLE planets (id INTEGER PRIMARY KEY, name TEXT)")
+		
+		// Exercise COMMIT
+		let exerciseCommitClosure: () throws -> String = {
+			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [1, "Mercury"])
+			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [2, "Venus"])
+			return "I'm a value returned from the closure"
+		}
+		let result: String = try! p.doWithTransaction(closure: exerciseCommitClosure)
+		XCTAssertEqual(result, "I'm a value returned from the closure")
+		
+		// Exercise ROLLBACK
+		let exerciseRollbackClosure: () throws -> () = {
+			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [3, "Earth"])
+			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
+			// The following line exercises the ROLLBACK code by triggering a duplicate id error
+			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
+		}
+		XCTAssertThrowsError(try p.doWithTransaction(closure: exerciseRollbackClosure))
+		
+		// Verify that the `exerciseRollbackClosure` got ROLLBACK'ed by checking Earth does not exist
+		do {
+			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Earth"])
+			let num = res.numTuples()
+			XCTAssertEqual(num, 0)
+		}
+		// Verify that the `exerciseCommitClosure` got COMMIT'ted by checking that Mercury does exist
+		do {
+			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Mercury"])
+			let num = res.numTuples()
+			XCTAssertEqual(num, 1)
+		}
+
+		// Teardown
+		try! p.execute(statement: "DROP TABLE planets")
+		p.finish()
+	}
 }
 
 extension PerfectPostgreSQLTests {
@@ -158,7 +226,10 @@ extension PerfectPostgreSQLTests {
             ("testExec", testExec),
             ("testExecGetValues", testExecGetValues),
             ("testExecGetValuesParams", testExecGetValuesParams),
-            ("testAnyBinds", testAnyBinds)
+            ("testAnyBinds", testAnyBinds),
+            ("testEnsureStatusIsOk", testEnsureStatusIsOk),
+            ("testExecute", testExecute),
+            ("testTransaction", testTransaction)
         ]
     }
 }

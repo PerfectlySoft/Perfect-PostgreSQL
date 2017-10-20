@@ -20,6 +20,12 @@
 import Foundation
 import libpq
 
+/// This enum type indicates an exception when dealing with a PostgreSQL database
+public enum PostgreSQLError : Error {
+	/// Error with detail message.
+	case error(String)
+}
+
 /// result object
 public final class PGResult {
 	
@@ -387,11 +393,61 @@ public final class PGConnection {
 		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
 		return PGResult(r)
 	}
+	
+	/// Assert that the connection status is OK
+	///
+	/// - throws: If the connection status is bad
+	public func ensureStatusIsOk() throws {
+		switch status() {
+		case .ok:
+			// connection status is good
+			return
+		case .bad:
+			throw PostgreSQLError.error("Connection status is bad")
+		}
+	}
+	
+	/// The binding values
+	public typealias ExecuteParameterArray = [Any?]
+	
+	/// Execute the given statement.
+	///
+	/// - parameter statement: String statement to be executed
+	/// - parameter params: ExecuteParameterArray? optional bindings
+	/// - throws: If the status is an error
+	@discardableResult
+	public func execute(statement: String, params: ExecuteParameterArray? = nil) throws -> PGResult {
+		try ensureStatusIsOk()
+		let res: PGResult
+		if let params = params {
+			res = exec(statement: statement, params: params)
+		} else {
+			res = exec(statement: statement)
+		}
+		let status: PGResult.StatusType = res.status()
+		switch status {
+		case .emptyQuery, .commandOK, .tuplesOK:
+			return res
+		case .badResponse, .nonFatalError, .fatalError, .singleTuple, .unknown:
+			throw PostgreSQLError.error("Failed to execute statement. status: \(status)")
+		}
+	}
+
+	/// Executes a BEGIN, calls the provided closure and executes a ROLLBACK if an exception occurs or a COMMIT if no exception occurs.
+	///
+	/// - parameter closure: Block to be executed inside transaction
+	/// - throws: If the provided closure fails
+	/// - returns: If successful then the return value from the `closure`
+	public func doWithTransaction<Result>(closure: () throws -> Result) throws -> Result {
+		try ensureStatusIsOk()
+		try execute(statement: "BEGIN")
+		do {
+			let result: Result = try closure()
+			try execute(statement: "COMMIT")
+			return result
+		} catch {
+			try execute(statement: "ROLLBACK")
+			throw error
+		}
+	}
 }
-
-
-
-
-
-
-
