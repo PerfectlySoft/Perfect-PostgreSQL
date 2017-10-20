@@ -445,9 +445,9 @@ public final class PGConnection {
 			let result: Result = try closure()
 			try execute(statement: "COMMIT")
 			return result
-		} catch let e {
+		} catch {
 			try execute(statement: "ROLLBACK")
-			throw e
+			throw error
 		}
 	}
 }
