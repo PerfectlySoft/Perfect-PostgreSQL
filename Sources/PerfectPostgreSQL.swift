@@ -150,7 +150,7 @@ public final class PGResult {
 	
     /// return value for Int field type with row and field indexes provided
 	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Int(s)
@@ -158,7 +158,7 @@ public final class PGResult {
 	
     /// return value for Bool field type with row and field indexes provided
 	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return s == "t"
@@ -166,7 +166,7 @@ public final class PGResult {
 	
     /// return value for Int8 field type with row and field indexes provided
 	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Int8(s)
@@ -174,7 +174,7 @@ public final class PGResult {
 	
     /// return value for Int16 field type with row and field indexes provided
 	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Int16(s)
@@ -182,7 +182,7 @@ public final class PGResult {
 	
     /// return value for Int32 field type with row and field indexes provided
 	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Int32(s)
@@ -190,7 +190,7 @@ public final class PGResult {
 	
     /// return value for Int64 field type with row and field indexes provided
 	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Int64(s)
@@ -198,7 +198,7 @@ public final class PGResult {
 	
     /// return value for Double field type with row and field indexes provided
 	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Double(s)
@@ -206,7 +206,7 @@ public final class PGResult {
 	
     /// return value for Float field type with row and field indexes provided
 	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return Float(s)
@@ -214,7 +214,7 @@ public final class PGResult {
 	
     /// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		let sc = s.utf8
