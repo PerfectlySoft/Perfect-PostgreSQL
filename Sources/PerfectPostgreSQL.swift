@@ -142,7 +142,7 @@ public final class PGResult {
 	
     /// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
-		guard let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
 			return nil
 		}
 		return String(validatingUTF8: v)
