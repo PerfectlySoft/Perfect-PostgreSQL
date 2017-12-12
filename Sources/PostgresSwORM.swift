@@ -199,9 +199,18 @@ class PostgresSwORMRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	}
 }
 
+struct PostgresColumnInfo: Codable {
+	let column_name: String
+	let data_type: String
+}
+
 class PostgresGenDelegate: SQLGenDelegate {
+	let connection: PGConnection
 	var parentTableStack: [TableStructure] = []
 	var bindings: Bindings = []
+	init(connection c: PGConnection) {
+		connection = c
+	}
 	func getBinding(for expr: Expression) throws -> String {
 		let id = "$\(bindings.count+1)"
 		bindings.append((id, expr))
@@ -224,15 +233,57 @@ class PostgresGenDelegate: SQLGenDelegate {
 		if policy.contains(.dropTable) {
 			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName))"]
 		}
-		sub += [
-			"""
-			CREATE TABLE IF NOT EXISTS \(try quote(identifier: forTable.tableName)) (
-			\(try forTable.columns.map { try mapColumn($0) }.joined(separator: ",\n\t"))
-			)
-			"""]
+		if !policy.contains(.dropTable),
+			policy.contains(.reconcileTable),
+			let existingColumns = getExistingColumnData(forTable: forTable.tableName) {
+			let existingColumnMap: [String:PostgresColumnInfo] = .init(uniqueKeysWithValues: existingColumns.map { ($0.column_name, $0) })
+			let newColumnMap: [String:TableStructure.Column] = .init(uniqueKeysWithValues: forTable.columns.map { ($0.name, $0) })
+			
+			let addColumns = newColumnMap.keys.filter { existingColumnMap[$0] == nil }
+			let removeColumns: [String] = existingColumnMap.keys.filter { newColumnMap[$0] == nil }
+			
+			sub += try removeColumns.map {
+				return """
+				ALTER TABLE \(try quote(identifier: forTable.tableName)) DROP COLUMN \($0)
+				"""
+			}
+			sub += try addColumns.flatMap { newColumnMap[$0] }.map {
+				let nameType = try mapColumnType($0)
+				return """
+				ALTER TABLE \(try quote(identifier: forTable.tableName)) ADD COLUMN \(nameType)
+				"""
+			}
+			return sub
+		} else {
+			sub += [
+				"""
+				CREATE TABLE IF NOT EXISTS \(try quote(identifier: forTable.tableName)) (
+				\(try forTable.columns.map { try mapColumnType($0) }.joined(separator: ",\n\t"))
+				)
+				"""]
+		}
 		return sub
 	}
-	func mapColumn(_ column: TableStructure.Column) throws -> String {
+	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
+		do {
+			let statement =
+				"""
+				SELECT column_name, data_type
+				FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE table_name = '\(forTable)'
+				"""
+			let exeDelegate = PostgresExeDelegate(connection: connection, sql: statement)
+			var ret: [PostgresColumnInfo] = []
+			while try exeDelegate.hasNext() {
+				let rowDecoder: SwORMRowDecoder<ColumnKey> = SwORMRowDecoder(delegate: exeDelegate)
+				ret.append(try PostgresColumnInfo(from: rowDecoder))
+			}
+			return ret
+		} catch {
+			return nil
+		}
+	}
+	func mapColumnType(_ column: TableStructure.Column) throws -> String {
 		let name = column.name
 		let type = column.type
 		let typeName: String
@@ -409,7 +460,7 @@ struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 		connection = con
 	}
 	var sqlGenDelegate: SQLGenDelegate {
-		return PostgresGenDelegate()
+		return PostgresGenDelegate(connection: connection)
 	}
 	func sqlExeDelegate(forSQL: String) throws -> SQLExeDelegate {
 		return PostgresExeDelegate(connection: connection, sql: forSQL)

@@ -166,12 +166,13 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			let j2 = try db.table(TestTable1.self)
-				.select()
+				.select().map { $0 }
+			XCTAssert(!j2.isEmpty)
 			for row in j2 {
-				print("\(row)")
+				XCTAssertNil(row.subTables)
 			}
 		} catch {
-			print("\(error)")
+			XCTAssert(false, "\(error)")
 		}
 	}
 	
@@ -197,7 +198,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
-	func testInsert() {
+	func testInsert1() {
 		do {
 			let db = try getTestDB()
 			let t1 = db.table(TestTable1.self)
@@ -212,13 +213,47 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testInsert2() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert(newOne, ignoreKeys: \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == .integer(newOne.id))
+			let j2 = try j1.select().map {$0}
+			XCTAssert(try j1.count() == 1)
+			XCTAssert(j2[0].id == 2000)
+			XCTAssertNil(j2[0].integer)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testInsert3() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newTwo = TestTable1(id: 2001, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert([newOne, newTwo], setKeys: \TestTable1.id, \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == .integer(newOne.id))
+			let j2 = try j1.select().map {$0}
+			XCTAssert(try j1.count() == 1)
+			XCTAssert(j2[0].id == 2000)
+			XCTAssert(j2[0].integer == 40)
+			XCTAssertNil(j2[0].name)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
 	func testUpdate() {
 		do {
 			let db = try getTestDB()
 			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
 			try db.transaction {
 				try db.table(TestTable1.self).insert(newOne)
-				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 40, double: nil, blob: nil, subTables: nil)
+				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 41, double: nil, blob: nil, subTables: nil)
 				try db.table(TestTable1.self)
 					.where(\TestTable1.id == .integer(newOne.id))
 					.update(newOne2, setKeys: \TestTable1.name)
@@ -229,6 +264,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTAssert(j2.count == 1)
 			XCTAssert(j2[0].id == 2000)
 			XCTAssert(j2[0].name == "New One Updated")
+			XCTAssert(j2[0].integer == 40)
 		} catch {
 			XCTAssert(false, "\(error)")
 		}
@@ -315,13 +351,54 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testCreate3() {
+		struct FakeTestTable1: Codable, TableNameProvider {
+			enum CodingKeys: String, CodingKey {
+				case id, name, double = "doub", double2 = "doub2", blob, subTables
+			}
+			static let tableName = "test_table_1"
+			let id: Int
+			let name: String?
+			let double2: Double?
+			let double: Double?
+			let blob: [UInt8]?
+			let subTables: [TestTable2]?
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
+			
+			do {
+				let t1 = db.table(TestTable1.self)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				try t1.insert(newOne)
+			}
+			do {
+				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
+				let t1 = db.table(FakeTestTable1.self)
+				let j2 = try t1.where(\FakeTestTable1.id == .integer(2000)).select()
+				do {
+					let j2a = j2.map { $0 }
+					XCTAssert(j2a.count == 1)
+					XCTAssert(j2a[0].id == 2000)
+				}
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
+		("testCreate3", testCreate3),
 		("testSelectAll", testSelectAll),
 		("testSelectJoin", testSelectJoin),
-		("testInsert", testInsert),
+		("testInsert1", testInsert1),
+		("testInsert2", testInsert2),
+		("testInsert3", testInsert3),
 		("testUpdate", testUpdate),
+		("testDelete", testDelete),
 		("testSelectLimit", testSelectLimit),
 		("testSelectWhereNULL", testSelectWhereNULL)
 	]
