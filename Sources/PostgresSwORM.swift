@@ -248,7 +248,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 				"""
 			}
 			sub += try addColumns.flatMap { newColumnMap[$0] }.map {
-				let nameType = try mapColumnType($0)
+				let nameType = try getColumnDefinition($0)
 				return """
 				ALTER TABLE \(try quote(identifier: forTable.tableName)) ADD COLUMN \(nameType)
 				"""
@@ -258,7 +258,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			sub += [
 				"""
 				CREATE TABLE IF NOT EXISTS \(try quote(identifier: forTable.tableName)) (
-				\(try forTable.columns.map { try mapColumnType($0) }.joined(separator: ",\n\t"))
+				\(try forTable.columns.map { try getColumnDefinition($0) }.joined(separator: ",\n\t"))
 				)
 				"""]
 		}
@@ -283,7 +283,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			return nil
 		}
 	}
-	func mapColumnType(_ column: TableStructure.Column) throws -> String {
+	func getColumnDefinition(_ column: TableStructure.Column) throws -> String {
 		let name = column.name
 		let type = column.type
 		let typeName: String
@@ -336,6 +336,8 @@ class PostgresGenDelegate: SQLGenDelegate {
 		let addendum: String
 		if column.properties.contains(.primaryKey) {
 			addendum = " PRIMARY KEY"
+		} else if !column.optional {
+			addendum = " NOT NULL"
 		} else {
 			addendum = ""
 		}
