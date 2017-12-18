@@ -278,6 +278,9 @@ class PostgresGenDelegate: SQLGenDelegate {
 				let rowDecoder: SwORMRowDecoder<ColumnKey> = SwORMRowDecoder(delegate: exeDelegate)
 				ret.append(try PostgresColumnInfo(from: rowDecoder))
 			}
+			guard !ret.isEmpty else {
+				return nil
+			}
 			return ret
 		} catch {
 			return nil
