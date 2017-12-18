@@ -328,7 +328,20 @@ public final class PGConnection {
 	public func exec(statement: String) -> PGResult {
 		return PGResult(PQexec(self.conn, statement))
 	}
-	
+
+    /// Sends data to the server during COPY_IN state.
+    public func putCopyData(data: String) {
+        PQputCopyData(self.conn, data, Int32(data.count))
+    }
+
+    /// Sends end-of-data indication to the server during COPY_IN state.
+    /// If withError is set, the copy is forced to fail with the error description supplied.
+    public func putCopyEnd(withError: String? = nil) -> PGResult {
+        PQputCopyEnd(self.conn, withError)
+        let result = PGResult(PQgetResult(self.conn))
+        return result
+    }
+
 	// !FIX! does not handle binary data
     /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
 	public func exec(statement: String, params: [Any?]) -> PGResult {
