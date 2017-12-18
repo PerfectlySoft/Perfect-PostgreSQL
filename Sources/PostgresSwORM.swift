@@ -439,9 +439,9 @@ class PostgresExeDelegate: SQLExeDelegate {
 	}
 }
 
-struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
+public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	let connection: PGConnection
-	init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
+	public init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
 		var s = "host=\(host) dbname=\(database)"
 		if let p = port {
 			s += " port=\(p)"
@@ -454,17 +454,17 @@ struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 		}
 		try self.init(s)
 	}
-	init(_ connectionInfo: String) throws {
+	public init(_ connectionInfo: String) throws {
 		let con = PGConnection()
 		guard case .ok = con.connectdb(connectionInfo) else {
 			throw PostgresSwORMError("Could not connect. \(con.errorMessage())")
 		}
 		connection = con
 	}
-	var sqlGenDelegate: SQLGenDelegate {
+	public var sqlGenDelegate: SQLGenDelegate {
 		return PostgresGenDelegate(connection: connection)
 	}
-	func sqlExeDelegate(forSQL: String) throws -> SQLExeDelegate {
+	public func sqlExeDelegate(forSQL: String) throws -> SQLExeDelegate {
 		return PostgresExeDelegate(connection: connection, sql: forSQL)
 	}
 }
