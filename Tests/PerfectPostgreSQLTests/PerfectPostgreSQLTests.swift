@@ -19,218 +19,388 @@
 
 import Foundation
 import XCTest
+import PerfectSwORM
 @testable import PerfectPostgreSQL
 
-class PerfectPostgreSQLTests: XCTestCase {
-    
-    let postgresTestConnInfo = "host=localhost dbname=postgres"
-    
-	override func setUp() {
-		super.setUp()
-		// Put setup code here. This method is called before the invocation of each test method in the class.
+struct TestTable1: Codable, TableNameProvider {
+	enum CodingKeys: String, CodingKey {
+		case id, name, integer = "int", double = "doub", blob, subTables
 	}
-	
+	static let tableName = "test_table_1"
+	let id: Int
+	let name: String?
+	let integer: Int?
+	let double: Double?
+	let blob: [UInt8]?
+	let subTables: [TestTable2]?
+}
+
+struct TestTable2: Codable {
+	let id: UUID
+	let parentId: Int
+	let date: Date
+	let name: String?
+	let int: Int?
+	let doub: Double?
+	let blob: [UInt8]?
+}
+
+let testDBRowCount = 5
+let postgresTestDBName = "testing123"
+let postgresInitConnInfo = "host=localhost dbname=postgres"
+let postgresTestConnInfo = "host=localhost dbname=testing123"
+
+class PerfectPostgreSQLTests: XCTestCase {
 	override func tearDown() {
-		// Put teardown code here. This method is called after the invocation of each test method in the class.
+		SwORMLogging.flush()
 		super.tearDown()
 	}
 	
-	func testConnect() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		
-		XCTAssert(status == .ok)
-		print(p.errorMessage())
-		p.finish()
-	}
-	
-	func testExec() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		
-		let res = p.exec(statement: "select * from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
-		
-		let num = res.numFields()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let fn = res.fieldName(index: x)
-			XCTAssertNotNil(fn)
-			print(fn!)
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testExecGetValues() {
-        let p = PGConnection()
-        let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		// name, oid, integer, boolean
-		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
-		
-		let num = res.numTuples()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.characters.count)! > 0)
-			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
-			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
-			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testExecGetValuesParams() {
-        let p = PGConnection()
-        let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		// name, oid, integer, boolean
-		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
-		
-		let num = res.numTuples()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.characters.count)! > 0)
-			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
-			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
-			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testAnyBinds() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		guard case .ok = status else {
-			return XCTAssert(status == .ok)
-		}
-		// name, oid, integer, boolean
-		_ = p.exec(statement: "DROP TABLE IF EXISTS films")
-		
-		for _ in 0..<200 {
-			
-			let res = p.exec(statement: "CREATE TABLE films (code char(5) PRIMARY KEY, title varchar(40) NOT NULL, did integer NOT NULL, date_prod date, kind1 bytea, kind2 bytea)")
-			XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
-			
-			let u = "ABCDEFGH".utf8.map { Int8($0) }
+	func testCreate1() {
+		do {
 			do {
-				let res = p.exec(statement: "INSERT INTO films (code, title, did, kind1, kind2) VALUES ($1, $2, $3, $4, $5)",
-				                 params: [1, "film title", 42, Data(bytes: u, count: u.count), u])
-				XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
+				let db = Database(configuration: try PostgresDatabaseConfiguration(postgresInitConnInfo))
+				try db.sql("DROP DATABASE \(postgresTestDBName)")
+				try db.sql("CREATE DATABASE \(postgresTestDBName)")
+			}
+			let db = Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let t2 = db.table(TestTable2.self)
+				try t2.index(\TestTable2.parentId)
+			}
+			let t1 = db.table(TestTable1.self)
+			let subId = UUID()
+			try db.transaction {
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				try t1.insert(newOne)
+				let newSub1 = TestTable2(id: subId, parentId: 2000, date: Date(), name: "Me", int: nil, doub: nil, blob: nil)
+				let newSub2 = TestTable2(id: UUID(), parentId: 2000, date: Date(), name: "Not Me", int: nil, doub: nil, blob: nil)
+				let t2 = db.table(TestTable2.self)
+				try t2.insert([newSub1, newSub2])
+			}
+			let j2 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
+				.where(\TestTable1.id == .integer(2000) && \TestTable2.name == .string("Me"))
+			try db.transaction {
+				let j2a = try j2.select().map { $0 }
+				XCTAssert(try j2.count() == 1)
+				XCTAssert(j2a.count == 1)
+				guard j2a.count == 1 else {
+					return
+				}
+				let obj = j2a[0]
+				XCTAssert(obj.id == 2000)
+				XCTAssertNotNil(obj.subTables)
+				let subTables = obj.subTables!
+				XCTAssert(subTables.count == 1)
+				let obj2 = subTables[0]
+				XCTAssert(obj2.id == subId)
+			}
+			try db.create(TestTable1.self)
+			do {
+				let j2a = try j2.select().map { $0 }
+				XCTAssert(try j2.count() == 1)
+				XCTAssert(j2a[0].id == 2000)
+			}
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let j2b = try j2.select().map { $0 }
+				XCTAssert(j2b.count == 0)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func getTestDB() throws -> Database<PostgresDatabaseConfiguration> {
+		do {
+			do {
+				let db = Database(configuration: try PostgresDatabaseConfiguration(database: "postgres", host: "localhost"))
+				try db.sql("DROP DATABASE \(postgresTestDBName)")
+				try db.sql("CREATE DATABASE \(postgresTestDBName)")
 			}
 			
-			do {
-				let res = p.exec(statement: "SELECT code, title, did, kind1, kind2 FROM films")
-				XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
-				let num = res.numTuples()
-				XCTAssert(num == 1)
-				
-				let c1 = res.getFieldString(tupleIndex: 0, fieldIndex: 0)
-				XCTAssert(c1 == "1    ")
-				let c2 = res.getFieldString(tupleIndex: 0, fieldIndex: 1)
-				XCTAssert(c2 == "film title")
-				let c3 = res.getFieldInt(tupleIndex: 0, fieldIndex: 2)
-				XCTAssert(c3 == 42)
-				let c4 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 3)
-				XCTAssert(c4! == u)
-				let c5 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 4)
-				XCTAssert(c5! == u)
+			let db = Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
+			try db.create(TestTable1.self, policy: .dropTable)
+			try db.transaction {
+				() -> () in
+				try db.table(TestTable1.self)
+					.insert((1...testDBRowCount).map {
+						num -> TestTable1 in
+						let n = UInt8(num)
+						let blob: [UInt8]? = (num % 2 != 0) ? nil : [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
+						return TestTable1(id: num,
+										  name: "This is name bind \(num)",
+							integer: num,
+							double: Double(num),
+							blob: blob,
+							subTables: nil)
+					})
 			}
-			_ = p.exec(statement: "DROP TABLE films")
+			try db.transaction {
+				() -> () in
+				try db.table(TestTable2.self)
+					.insert((1...testDBRowCount).flatMap {
+						parentId -> [TestTable2] in
+						return (1...testDBRowCount).map {
+							num -> TestTable2 in
+							let n = UInt8(num)
+							let blob: [UInt8]? = [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
+							return TestTable2(id: UUID(),
+											  parentId: parentId,
+											  date: Date(),
+											  name: num % 2 == 0 ? "This is name bind \(num)" : "Me",
+											  int: num,
+											  doub: Double(num),
+											  blob: blob)
+						}
+					})
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
 		}
-		p.finish()
-	}
-
-	func testEnsureStatusIsOk() {
-		let p = PGConnection()
-		XCTAssertThrowsError(try p.ensureStatusIsOk())
-		_ =  p.connectdb(postgresTestConnInfo)
-		XCTAssertNoThrow(try p.ensureStatusIsOk())
-		p.finish()
-		XCTAssertThrowsError(try p.ensureStatusIsOk())
-	}
-	
-	func testExecute() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		
-		// Exercise with statements that executes successfully
-		XCTAssertNoThrow(try p.execute(statement: "SELECT 3 * 4"))
-		XCTAssertNoThrow(try p.execute(statement: ""))
-		
-		// Exercise with statements that fails
-		XCTAssertThrowsError(try p.execute(statement: "INVALID_SQL_GARBAGE"))
-
-		p.finish()
+		return Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
 	}
 	
-	func testTransaction() {
-		// Setup
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		try! p.execute(statement: "DROP TABLE IF EXISTS planets")
-		try! p.execute(statement: "CREATE TABLE planets (id INTEGER PRIMARY KEY, name TEXT)")
-		
-		// Exercise COMMIT
-		let exerciseCommitClosure: () throws -> String = {
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [1, "Mercury"])
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [2, "Venus"])
-			return "I'm a value returned from the closure"
-		}
-		let result: String = try! p.doWithTransaction(closure: exerciseCommitClosure)
-		XCTAssertEqual(result, "I'm a value returned from the closure")
-		
-		// Exercise ROLLBACK
-		let exerciseRollbackClosure: () throws -> () = {
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [3, "Earth"])
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
-			// The following line exercises the ROLLBACK code by triggering a duplicate id error
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
-		}
-		XCTAssertThrowsError(try p.doWithTransaction(closure: exerciseRollbackClosure))
-		
-		// Verify that the `exerciseRollbackClosure` got ROLLBACK'ed by checking Earth does not exist
+	func testSelectAll() {
 		do {
-			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Earth"])
-			let num = res.numTuples()
-			XCTAssertEqual(num, 0)
+			let db = try getTestDB()
+			let j2 = try db.table(TestTable1.self)
+				.select().map { $0 }
+			XCTAssert(!j2.isEmpty)
+			for row in j2 {
+				XCTAssertNil(row.subTables)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
 		}
-		// Verify that the `exerciseCommitClosure` got COMMIT'ted by checking that Mercury does exist
-		do {
-			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Mercury"])
-			let num = res.numTuples()
-			XCTAssertEqual(num, 1)
-		}
-
-		// Teardown
-		try! p.execute(statement: "DROP TABLE planets")
-		p.finish()
 	}
-}
-
-extension PerfectPostgreSQLTests {
-    static var allTests : [(String, (PerfectPostgreSQLTests) -> () throws -> ())] {
-        return [
-            ("testConnect", testConnect),
-            ("testExec", testExec),
-            ("testExecGetValues", testExecGetValues),
-            ("testExecGetValuesParams", testExecGetValuesParams),
-            ("testAnyBinds", testAnyBinds),
-            ("testEnsureStatusIsOk", testEnsureStatusIsOk),
-            ("testExecute", testExecute),
-            ("testTransaction", testTransaction)
-        ]
-    }
+	
+	func testSelectJoin() {
+		do {
+			let db = try getTestDB()
+			let j2 = try db.table(TestTable1.self)
+				.order(by: \TestTable1.name)
+				.join(\.subTables, on: \.id, equals: \.parentId)
+				.order(by: \TestTable2.id)
+				.where(\TestTable2.name == .string("Me"))
+			
+			let j2c = try j2.count()
+			let j2a = try j2.select().map{$0}
+			let j2ac = j2a.count
+			XCTAssert(j2c != 0)
+			XCTAssert(j2c == j2ac)
+			j2a.forEach { row in
+				XCTAssertFalse(row.subTables?.isEmpty ?? true)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testInsert1() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert(newOne)
+			let j1 = t1.where(\TestTable1.id == .integer(newOne.id))
+			let j2 = try j1.select().map {$0}
+			XCTAssert(try j1.count() == 1)
+			XCTAssert(j2[0].id == 2000)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testInsert2() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert(newOne, ignoreKeys: \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == .integer(newOne.id))
+			let j2 = try j1.select().map {$0}
+			XCTAssert(try j1.count() == 1)
+			XCTAssert(j2[0].id == 2000)
+			XCTAssertNil(j2[0].integer)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testInsert3() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newTwo = TestTable1(id: 2001, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert([newOne, newTwo], setKeys: \TestTable1.id, \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == .integer(newOne.id))
+			let j2 = try j1.select().map {$0}
+			XCTAssert(try j1.count() == 1)
+			XCTAssert(j2[0].id == 2000)
+			XCTAssert(j2[0].integer == 40)
+			XCTAssertNil(j2[0].name)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testUpdate() {
+		do {
+			let db = try getTestDB()
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try db.transaction {
+				try db.table(TestTable1.self).insert(newOne)
+				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 41, double: nil, blob: nil, subTables: nil)
+				try db.table(TestTable1.self)
+					.where(\TestTable1.id == .integer(newOne.id))
+					.update(newOne2, setKeys: \TestTable1.name)
+			}
+			let j2 = try db.table(TestTable1.self)
+				.where(\TestTable1.id == .integer(newOne.id))
+				.select().map { $0 }
+			XCTAssert(j2.count == 1)
+			XCTAssert(j2[0].id == 2000)
+			XCTAssert(j2[0].name == "New One Updated")
+			XCTAssert(j2[0].integer == 40)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testDelete() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			try t1.insert(newOne)
+			let j1 = try t1
+				.where(\TestTable1.id == .integer(newOne.id))
+				.select().map { $0 }
+			XCTAssert(j1.count == 1)
+			try t1
+				.where(\TestTable1.id == .integer(newOne.id))
+				.delete()
+			let j2 = try t1
+				.where(\TestTable1.id == .integer(newOne.id))
+				.select().map { $0 }
+			XCTAssert(j2.count == 0)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testCreate2() {
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let t2 = db.table(TestTable2.self)
+				try t2.index(\TestTable2.parentId)
+			}
+			let t1 = db.table(TestTable1.self)
+			do {
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				try t1.insert(newOne)
+			}
+			let j2 = try t1.where(\TestTable1.id == .integer(2000)).select()
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssert(j2a.count == 1)
+				XCTAssert(j2a[0].id == 2000)
+			}
+			try db.create(TestTable1.self)
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssert(j2a.count == 1)
+				XCTAssert(j2a[0].id == 2000)
+			}
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let j2b = j2.map { $0 }
+				XCTAssert(j2b.count == 0)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testSelectLimit() {
+		do {
+			let db = try getTestDB()
+			let j2 = db.table(TestTable1.self).limit(3, skip: 2)
+			XCTAssert(try j2.count() == 3)
+		} catch {
+			print("\(error)")
+		}
+	}
+	
+	func testSelectWhereNULL() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let j1 = t1.where(\TestTable1.blob == .null)
+			XCTAssert(try j1.count() > 0)
+			let j2 = t1.where(\TestTable1.blob != .null)
+			XCTAssert(try j2.count() > 0)
+			SwORMLogging.flush()
+		} catch {
+			print("\(error)")
+		}
+	}
+	
+	func testCreate3() {
+		struct FakeTestTable1: Codable, TableNameProvider {
+			enum CodingKeys: String, CodingKey {
+				case id, name, double = "doub", double2 = "doub2", blob, subTables
+			}
+			static let tableName = "test_table_1"
+			let id: Int
+			let name: String?
+			let double2: Double?
+			let double: Double?
+			let blob: [UInt8]?
+			let subTables: [TestTable2]?
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
+			
+			do {
+				let t1 = db.table(TestTable1.self)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				try t1.insert(newOne)
+			}
+			do {
+				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
+				let t1 = db.table(FakeTestTable1.self)
+				let j2 = try t1.where(\FakeTestTable1.id == .integer(2000)).select()
+				do {
+					let j2a = j2.map { $0 }
+					XCTAssert(j2a.count == 1)
+					XCTAssert(j2a[0].id == 2000)
+				}
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	static var allTests = [
+		("testCreate1", testCreate1),
+		("testCreate2", testCreate2),
+		("testCreate3", testCreate3),
+		("testSelectAll", testSelectAll),
+		("testSelectJoin", testSelectJoin),
+		("testInsert1", testInsert1),
+		("testInsert2", testInsert2),
+		("testInsert3", testInsert3),
+		("testUpdate", testUpdate),
+		("testDelete", testDelete),
+		("testSelectLimit", testSelectLimit),
+		("testSelectWhereNULL", testSelectWhereNULL)
+	]
 }
 
