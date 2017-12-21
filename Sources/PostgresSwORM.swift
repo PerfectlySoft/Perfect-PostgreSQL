@@ -346,11 +346,11 @@ class PostgresGenDelegate: SQLGenDelegate {
 		}
 		return "\(try quote(identifier: name)) \(typeName)\(addendum)"
 	}
-	func getCreateIndexSQL(forTable name: String, on column: String) throws -> [String] {
+	func getCreateIndexSQL(forTable name: String, on columns: [String], unique: Bool) throws -> [String] {
 		let stat =
 		"""
-		CREATE INDEX IF NOT EXISTS \(try quote(identifier: "index_\(name)_\(column)"))
-		ON \(try quote(identifier: name)) (\(try quote(identifier: column)))
+		CREATE \(unique ? "UNIQUE " : "")INDEX IF NOT EXISTS \(try quote(identifier: "index_\(columns.joined(separator: "_"))"))
+		ON \(try quote(identifier: name)) (\(try columns.map{try quote(identifier: $0)}.joined(separator: ",")))
 		"""
 		return [stat]
 	}
