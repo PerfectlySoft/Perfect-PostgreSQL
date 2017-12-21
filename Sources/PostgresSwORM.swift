@@ -8,11 +8,11 @@
 import Foundation
 import PerfectSwORM
 
-struct PostgresSwORMError: Error {
-	let msg: String
-	init(_ m: String) {
-		msg = m
-		SwORMLogging.log(.error, m)
+public struct PostgresSwORMError: Error, CustomStringConvertible {
+	public let description: String
+	public init(_ msg: String) {
+		description = msg
+		SwORMLogging.log(.error, msg)
 	}
 }
 
