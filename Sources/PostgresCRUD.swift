@@ -1,18 +1,18 @@
 //
-//  PostgresSwORM.swift
-//  PerfectSwORM
+//  PostgresCRUD.swift
+//  PerfectCRUD
 //
 //  Created by Kyle Jessup on 2017-12-04.
 //
 
 import Foundation
-import PerfectSwORM
+import PerfectCRUD
 
-public struct PostgresSwORMError: Error, CustomStringConvertible {
+public struct PostgresCRUDError: Error, CustomStringConvertible {
 	public let description: String
 	public init(_ msg: String) {
 		description = msg
-		SwORMLogging.log(.error, msg)
+		CRUDLogging.log(.error, msg)
 	}
 }
 
@@ -71,7 +71,7 @@ extension PGResult {
 	}
 }
 
-class PostgresSwORMRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
+class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	typealias Key = K
 	var codingPath: [CodingKey] = []
 	var allKeys: [K] = []
@@ -88,7 +88,7 @@ class PostgresSwORMRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	}
 	func ensureIndex(forKey key: K) throws -> Int {
 		guard let index = fieldNames[key.stringValue.lowercased()] else {
-			throw PostgresSwORMError("No index for column \(key.stringValue)")
+			throw PostgresCRUDError("No index for column \(key.stringValue)")
 		}
 		return index
 	}
@@ -155,7 +155,7 @@ class PostgresSwORMRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	func decode<T>(_ type: T.Type, forKey key: K) throws -> T where T : Decodable {
 		let index = try ensureIndex(forKey: key)
 		guard let special = SpecialType(type) else {
-			throw SwORMDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
+			throw CRUDDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
 		}
 		switch special {
 		case .uint8Array:
@@ -170,13 +170,13 @@ class PostgresSwORMRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 		case .uuid:
 			let str = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: index) ?? ""
 			guard let ret = UUID(uuidString: str) else {
-				throw SwORMDecoderError("Invalid UUID string \(str).")
+				throw CRUDDecoderError("Invalid UUID string \(str).")
 			}
 			return ret as! T
 		case .date:
 			let str = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: index) ?? ""
 			guard let date = Date(fromISO8601: str) else {
-				throw SwORMDecoderError("Invalid Date string \(str).")
+				throw CRUDDecoderError("Invalid Date string \(str).")
 			}
 			return date as! T
 		}
@@ -275,7 +275,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			let exeDelegate = PostgresExeDelegate(connection: connection, sql: statement)
 			var ret: [PostgresColumnInfo] = []
 			while try exeDelegate.hasNext() {
-				let rowDecoder: SwORMRowDecoder<ColumnKey> = SwORMRowDecoder(delegate: exeDelegate)
+				let rowDecoder: CRUDRowDecoder<ColumnKey> = CRUDRowDecoder(delegate: exeDelegate)
 				ret.append(try PostgresColumnInfo(from: rowDecoder))
 			}
 			guard !ret.isEmpty else {
@@ -321,7 +321,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			typeName = "text"
 		default:
 			guard let special = SpecialType(type) else {
-				throw PostgresSwORMError("Unsupported SQL column type \(type)")
+				throw PostgresCRUDError("Unsupported SQL column type \(type)")
 			}
 			switch special {
 			case .uint8Array:
@@ -394,9 +394,9 @@ class PostgresExeDelegate: SQLExeDelegate {
 					fieldNames[fieldName] = i
 				}
 			case .badResponse, .fatalError:
-				throw SwORMSQLExeError(r.errorMessage())
+				throw CRUDSQLExeError(r.errorMessage())
 			case .nonFatalError:
-				SwORMLogging.log(.warning, r.errorMessage())
+				CRUDLogging.log(.warning, r.errorMessage())
 			case .unknown:
 				return false
 			}
@@ -408,12 +408,12 @@ class PostgresExeDelegate: SQLExeDelegate {
 		guard let results = self.results else {
 			return nil
 		}
-		let ret = KeyedDecodingContainer(PostgresSwORMRowReader<A>(results: results, tupleIndex: tupleIndex, fieldNames: fieldNames))
+		let ret = KeyedDecodingContainer(PostgresCRUDRowReader<A>(results: results, tupleIndex: tupleIndex, fieldNames: fieldNames))
 		tupleIndex += 1
 		return ret
 	}
 	
-	private func bindOne(expr: SwORMExpression) throws -> Any? {
+	private func bindOne(expr: CRUDExpression) throws -> Any? {
 		switch expr {
 		case .lazy(let e):
 			return try bindOne(expr: e())
@@ -437,7 +437,7 @@ class PostgresExeDelegate: SQLExeDelegate {
 			 .equality(_, _), .inequality(_, _),
 			 .not(_), .lessThan(_, _), .lessThanEqual(_, _),
 			 .greaterThan(_, _), .greaterThanEqual(_, _), .keyPath(_):
-			throw PostgresSwORMError("Asked to bind unsupported expression type: \(expr)")
+			throw PostgresCRUDError("Asked to bind unsupported expression type: \(expr)")
 		}
 	}
 }
@@ -460,7 +460,7 @@ public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	public init(_ connectionInfo: String) throws {
 		let con = PGConnection()
 		guard case .ok = con.connectdb(connectionInfo) else {
-			throw PostgresSwORMError("Could not connect. \(con.errorMessage())")
+			throw PostgresCRUDError("Could not connect. \(con.errorMessage())")
 		}
 		connection = con
 	}
