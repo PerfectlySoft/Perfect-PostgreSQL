@@ -8,11 +8,11 @@
 import Foundation
 import PerfectSwORM
 
-struct PostgresSwORMError: Error {
-	let msg: String
-	init(_ m: String) {
-		msg = m
-		SwORMLogging.log(.error, m)
+public struct PostgresSwORMError: Error, CustomStringConvertible {
+	public let description: String
+	public init(_ msg: String) {
+		description = msg
+		SwORMLogging.log(.error, msg)
 	}
 }
 
@@ -278,6 +278,9 @@ class PostgresGenDelegate: SQLGenDelegate {
 				let rowDecoder: SwORMRowDecoder<ColumnKey> = SwORMRowDecoder(delegate: exeDelegate)
 				ret.append(try PostgresColumnInfo(from: rowDecoder))
 			}
+			guard !ret.isEmpty else {
+				return nil
+			}
 			return ret
 		} catch {
 			return nil
@@ -343,11 +346,11 @@ class PostgresGenDelegate: SQLGenDelegate {
 		}
 		return "\(try quote(identifier: name)) \(typeName)\(addendum)"
 	}
-	func getCreateIndexSQL(forTable name: String, on column: String) throws -> [String] {
+	func getCreateIndexSQL(forTable name: String, on columns: [String], unique: Bool) throws -> [String] {
 		let stat =
 		"""
-		CREATE INDEX IF NOT EXISTS \(try quote(identifier: "index_\(name)_\(column)"))
-		ON \(try quote(identifier: name)) (\(try quote(identifier: column)))
+		CREATE \(unique ? "UNIQUE " : "")INDEX IF NOT EXISTS \(try quote(identifier: "index_\(columns.joined(separator: "_"))"))
+		ON \(try quote(identifier: name)) (\(try columns.map{try quote(identifier: $0)}.joined(separator: ",")))
 		"""
 		return [stat]
 	}
@@ -439,9 +442,9 @@ class PostgresExeDelegate: SQLExeDelegate {
 	}
 }
 
-struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
+public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	let connection: PGConnection
-	init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
+	public init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
 		var s = "host=\(host) dbname=\(database)"
 		if let p = port {
 			s += " port=\(p)"
@@ -454,17 +457,17 @@ struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 		}
 		try self.init(s)
 	}
-	init(_ connectionInfo: String) throws {
+	public init(_ connectionInfo: String) throws {
 		let con = PGConnection()
 		guard case .ok = con.connectdb(connectionInfo) else {
 			throw PostgresSwORMError("Could not connect. \(con.errorMessage())")
 		}
 		connection = con
 	}
-	var sqlGenDelegate: SQLGenDelegate {
+	public var sqlGenDelegate: SQLGenDelegate {
 		return PostgresGenDelegate(connection: connection)
 	}
-	func sqlExeDelegate(forSQL: String) throws -> SQLExeDelegate {
+	public func sqlExeDelegate(forSQL: String) throws -> SQLExeDelegate {
 		return PostgresExeDelegate(connection: connection, sql: forSQL)
 	}
 }
