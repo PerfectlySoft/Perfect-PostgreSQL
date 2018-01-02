@@ -237,14 +237,14 @@ class PostgresGenDelegate: SQLGenDelegate {
 			policy.contains(.reconcileTable),
 			let existingColumns = getExistingColumnData(forTable: forTable.tableName) {
 			let existingColumnMap: [String:PostgresColumnInfo] = .init(uniqueKeysWithValues: existingColumns.map { ($0.column_name, $0) })
-			let newColumnMap: [String:TableStructure.Column] = .init(uniqueKeysWithValues: forTable.columns.map { ($0.name, $0) })
+			let newColumnMap: [String:TableStructure.Column] = .init(uniqueKeysWithValues: forTable.columns.map { ($0.name.lowercased(), $0) })
 			
 			let addColumns = newColumnMap.keys.filter { existingColumnMap[$0] == nil }
 			let removeColumns: [String] = existingColumnMap.keys.filter { newColumnMap[$0] == nil }
 			
 			sub += try removeColumns.map {
 				return """
-				ALTER TABLE \(try quote(identifier: forTable.tableName)) DROP COLUMN \($0)
+				ALTER TABLE \(try quote(identifier: forTable.tableName)) DROP COLUMN \(try quote(identifier: $0))
 				"""
 			}
 			sub += try addColumns.flatMap { newColumnMap[$0] }.map {
@@ -270,9 +270,10 @@ class PostgresGenDelegate: SQLGenDelegate {
 				"""
 				SELECT column_name, data_type
 				FROM INFORMATION_SCHEMA.COLUMNS
-				WHERE table_name = '\(forTable)'
+				WHERE table_name = $1
 				"""
 			let exeDelegate = PostgresExeDelegate(connection: connection, sql: statement)
+			exeDelegate.nextBindings = [("$1", .string(forTable.lowercased()))]
 			var ret: [PostgresColumnInfo] = []
 			while try exeDelegate.hasNext() {
 				let rowDecoder: CRUDRowDecoder<ColumnKey> = CRUDRowDecoder(delegate: exeDelegate)
