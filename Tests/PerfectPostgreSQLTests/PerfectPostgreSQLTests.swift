@@ -19,7 +19,7 @@
 
 import Foundation
 import XCTest
-import PerfectSwORM
+import PerfectCRUD
 @testable import PerfectPostgreSQL
 
 struct TestTable1: Codable, TableNameProvider {
@@ -52,7 +52,7 @@ let postgresTestConnInfo = "host=localhost dbname=testing123"
 
 class PerfectPostgreSQLTests: XCTestCase {
 	override func tearDown() {
-		SwORMLogging.flush()
+		CRUDLogging.flush()
 		super.tearDown()
 	}
 	
@@ -345,7 +345,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTAssert(try j1.count() > 0)
 			let j2 = t1.where(\TestTable1.blob != .null)
 			XCTAssert(try j2.count() > 0)
-			SwORMLogging.flush()
+			CRUDLogging.flush()
 		} catch {
 			print("\(error)")
 		}
@@ -388,6 +388,102 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testPersonThing() {
+		do {
+			// CRUD can work with most Codable types.
+			struct PhoneNumber: Codable {
+				let id: UUID
+				let personId: UUID
+				let planetCode: Int
+				let number: String
+			}
+			struct Person: Codable {
+				let id: UUID
+				let firstName: String
+				let lastName: String
+				let phoneNumbers: [PhoneNumber]?
+			}
+			// CRUD usage begins by creating a database connection. The inputs for connecting to a database will differ depending on your client library.
+			// Create a `Database` object by providing a configuration. These examples will use SQLite for demonstration purposes.
+			let db = try getTestDB()
+			// Create the table if it hasn't been done already.
+			// Table creates are recursive by default, so "PhoneNumber" is also created here.
+			try db.create(Person.self, policy: .reconcileTable)
+			// Get a reference to the tables we will be inserting data into.
+			let personTable = db.table(Person.self)
+			let numbersTable = db.table(PhoneNumber.self)
+			// Add an index for personId, if it does not already exist.
+			try numbersTable.index(\.personId)
+			do {
+				// Insert some sample data.
+				let personId1 = UUID()
+				let personId2 = UUID()
+				try personTable.insert([
+					Person(id: personId1, firstName: "Owen", lastName: "Lars", phoneNumbers: nil),
+					Person(id: personId2, firstName: "Beru", lastName: "Lars", phoneNumbers: nil)])
+				try numbersTable.insert([
+					PhoneNumber(id: UUID(), personId: personId1, planetCode: 12, number: "555-555-1212"),
+					PhoneNumber(id: UUID(), personId: personId1, planetCode: 15, number: "555-555-2222"),
+					PhoneNumber(id: UUID(), personId: personId2, planetCode: 12, number: "555-555-1212")
+					])
+			}
+			// Let's find all people with the last name of Lars which have a phone number on planet 12.
+			let query = try personTable
+				.order(by: \.lastName, \.firstName)
+				.join(\.phoneNumbers, on: \.id, equals: \.personId)
+				.order(descending: \.planetCode)
+				.where(\Person.lastName == .string("Lars") && \PhoneNumber.planetCode == .integer(12))
+				.select()
+			// Loop through them and print the names.
+			for user in query {
+				print("\(user.firstName) \(user.lastName)")
+				// We joined PhoneNumbers, so we should have values here.
+				guard let numbers = user.phoneNumbers else {
+					continue
+				}
+				for number in numbers {
+					print(number.number)
+				}
+			}
+			CRUDLogging.flush()
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testPivotJoin() {
+		struct Parent: Codable {
+			let id: Int
+			let children: [Child]?
+		}
+		struct Child: Codable {
+			let id: Int
+		}
+		struct Pivot: Codable {
+			let parentId: Int
+			let childId: Int
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(Parent.self)
+			try db.create(Child.self)
+			try db.create(Pivot.self)
+			
+			try db.table(Parent.self).insert(Parent(id: 1, children: nil))
+			try db.table(Child.self).insert([Child(id: 1), Child(id: 2), Child(id: 3)])
+			try db.table(Pivot.self).insert([Pivot(parentId: 1, childId: 1), Pivot(parentId: 1, childId: 2), Pivot(parentId: 1, childId: 3)])
+			
+			let join = try db.table(Parent.self).join(\.children, with: Pivot.self, on: \.id, equals: \.parentId, and: \.id, is: \.childId)
+			guard let parent = try join.select().map({ $0 }).first else {
+				return XCTAssert(false)
+			}
+			XCTAssert(parent.children?.count == 3)
+			CRUDLogging.flush()
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -400,7 +496,9 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testUpdate", testUpdate),
 		("testDelete", testDelete),
 		("testSelectLimit", testSelectLimit),
-		("testSelectWhereNULL", testSelectWhereNULL)
+		("testSelectWhereNULL", testSelectWhereNULL),
+		("testPersonThing", testPersonThing),
+		("testPivotJoin", testPivotJoin)
 	]
 }
 
