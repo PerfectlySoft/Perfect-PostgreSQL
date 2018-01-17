@@ -1,3 +1,5 @@
+// swift-tools-version:4.0
+// The swift-tools-version declares the minimum version of Swift required to build this package.
 //
 //  Package.swift
 //  Perfect-PostgreSQL
@@ -16,25 +18,30 @@
 //
 //===----------------------------------------------------------------------===//
 //
-
 import PackageDescription
 
-#if os(OSX)
-let package = Package(
-    name: "PerfectPostgreSQL",
-    targets: [],
-    dependencies: [
-        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", majorVersion: 2, minor: 0)
-    ],
-    exclude: []
-)
+#if os(Linux)
+  let libpq = "libpq-linux"
 #else
-let package = Package(
-    name: "PerfectPostgreSQL",
-    targets: [],
-    dependencies: [
-        .Package(url: "https://github.com/PerfectlySoft/Perfect-libpq-linux.git", majorVersion: 2, minor: 0)
-    ],
-    exclude: []
-)
+  let libpq = "libpq"
 #endif
+
+let package = Package(
+  name: "PerfectPostgreSQL",
+  products: [
+    .library(
+      name: "PerfectPostgreSQL",
+      targets: ["PerfectPostgreSQL"]),
+    ],
+  dependencies: [
+    .package(url: "https://github.com/PerfectlySoft/Perfect-\(libpq).git", from: "2.0.0"),
+  ],
+  targets: [
+    .target(
+      name: "PerfectPostgreSQL",
+      dependencies: []),
+    .testTarget(
+      name: "PerfectPostgreSQLTests",
+      dependencies: ["PerfectPostgreSQL"]),
+    ]
+)
