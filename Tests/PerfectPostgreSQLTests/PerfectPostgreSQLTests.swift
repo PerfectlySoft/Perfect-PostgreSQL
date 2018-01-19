@@ -20,6 +20,7 @@
 import Foundation
 import XCTest
 @testable import PerfectPostgreSQL
+import Dispatch
 
 class PerfectPostgreSQLTests: XCTestCase {
     
@@ -75,7 +76,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		XCTAssert(num > 0)
 		for x in 0..<num {
 			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.characters.count)! > 0)
+			XCTAssertTrue((c1?.count)! > 0)
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
@@ -97,7 +98,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		XCTAssert(num > 0)
 		for x in 0..<num {
 			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.characters.count)! > 0)
+			XCTAssertTrue((c1?.count)! > 0)
 			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
 			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
 			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
@@ -220,8 +221,32 @@ class PerfectPostgreSQLTests: XCTestCase {
 }
 
 extension PerfectPostgreSQLTests {
+  func testNotice() {
+    let p = PGConnection()
+    let status = p.connectdb(postgresTestConnInfo)
+    XCTAssert(status == .ok)
+    let g = DispatchGroup()
+    g.enter()
+    let rec = p.setReceiver { res in
+      XCTAssertEqual(res.numTuples(), 0)
+      XCTAssertEqual(res.numFields(), 0)
+      XCTAssertEqual(res.errorMessage(), "NOTICE:  hello, world\n")
+      g.leave()
+    }
+    XCTAssertNotNil(rec)
+    let prc = p.setProcessor { messge in
+      print(messge)
+    }
+    XCTAssertNotNil(prc)
+    let _ = p.exec(statement: "DO language plpgsql $$BEGIN RAISE NOTICE 'hello, world'; END $$;")
+    _ = g.wait()
+    p.finish()
+  }
+}
+extension PerfectPostgreSQLTests {
     static var allTests : [(String, (PerfectPostgreSQLTests) -> () throws -> ())] {
         return [
+            ("testNotice", testNotice),
             ("testConnect", testConnect),
             ("testExec", testExec),
             ("testExecGetValues", testExecGetValues),

@@ -42,9 +42,11 @@ public final class PGResult {
 	}
 	
 	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
-	
-	init(_ res: OpaquePointer?) {
+	var borrowed = false
+
+  init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
 		self.res = res
+    self.borrowed = isBorrowed
 	}
 	
 	deinit {
@@ -59,7 +61,9 @@ public final class PGResult {
     /// clear and disconnect result object
 	public func clear() {
 		if let res = self.res {
-			PQclear(res)
+      if !self.borrowed {
+        PQclear(res)
+      }
 			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
@@ -450,4 +454,40 @@ public final class PGConnection {
 			throw error
 		}
 	}
+
+  public typealias ReceiverProc = (PGResult) -> Void
+  public typealias ProcessorProc = (String) -> Void
+  internal var receiver: ReceiverProc = { _ in }
+  internal var processor: ProcessorProc = { _ in }
+
+  public func setReceiver(_ handler: @escaping ReceiverProc) -> PQnoticeReceiver? {
+    guard let cn = self.conn else {
+      return nil
+    }
+    self.receiver = handler
+    let me = Unmanaged.passUnretained(self).toOpaque()
+    return PQsetNoticeReceiver(cn, { arg, result in
+      guard let pointer = arg, let res = result else {
+        return
+      }
+      let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
+      let pgresult = PGResult(res, isBorrowed: true)
+      this.receiver(pgresult)
+    }, me)
+  }
+  public func setProcessor(_ handler: @escaping ProcessorProc) -> PQnoticeProcessor?{
+    guard let cn = self.conn else {
+      return nil
+    }
+    self.processor = handler
+    let me = Unmanaged.passUnretained(self).toOpaque()
+    return PQsetNoticeProcessor(cn, {arg, msg in
+      guard let pointer = arg, let message = msg else {
+        return
+      }
+      let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
+      let strmsg = String(cString: message)
+      this.processor(strmsg)
+    }, me)
+  }
 }
