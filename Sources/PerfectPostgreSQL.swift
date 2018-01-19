@@ -455,11 +455,21 @@ public final class PGConnection {
 		}
 	}
 
+  /// Handler for receiving a PGResult
   public typealias ReceiverProc = (PGResult) -> Void
+
+  /// Handler for processing a text message
   public typealias ProcessorProc = (String) -> Void
+
+  /// internal callback for notice receiving
   internal var receiver: ReceiverProc = { _ in }
+
+  /// internal callback for notice processing
   internal var processor: ProcessorProc = { _ in }
 
+  /// Set a new notice receiver
+  /// - parameter handler: a closure to handle the incoming notice
+  /// - returns: a C convention function pointer; would be nil if failed to set.
   public func setReceiver(_ handler: @escaping ReceiverProc) -> PQnoticeReceiver? {
     guard let cn = self.conn else {
       return nil
@@ -475,6 +485,10 @@ public final class PGConnection {
       this.receiver(pgresult)
     }, me)
   }
+
+  /// Set a new notice processor
+  /// - parameter handler: a closure to handle the incoming notice
+  /// - returns: a C convention function pointer; would be nil if failed to set.
   public func setProcessor(_ handler: @escaping ProcessorProc) -> PQnoticeProcessor?{
     guard let cn = self.conn else {
       return nil
