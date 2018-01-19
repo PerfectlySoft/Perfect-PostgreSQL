@@ -20,7 +20,6 @@
 import Foundation
 import XCTest
 @testable import PerfectPostgreSQL
-import Dispatch
 
 class PerfectPostgreSQLTests: XCTestCase {
     
@@ -225,13 +224,12 @@ extension PerfectPostgreSQLTests {
     let p = PGConnection()
     let status = p.connectdb(postgresTestConnInfo)
     XCTAssert(status == .ok)
-    let g = DispatchGroup()
-    g.enter()
+    let exp = expectation(description: "rec")
     let rec = p.setReceiver { res in
       XCTAssertEqual(res.numTuples(), 0)
       XCTAssertEqual(res.numFields(), 0)
       XCTAssertEqual(res.errorMessage(), "NOTICE:  hello, world\n")
-      g.leave()
+      exp.fulfill()
     }
     XCTAssertNotNil(rec)
     let prc = p.setProcessor { messge in
@@ -239,7 +237,7 @@ extension PerfectPostgreSQLTests {
     }
     XCTAssertNotNil(prc)
     let _ = p.exec(statement: "DO language plpgsql $$BEGIN RAISE NOTICE 'hello, world'; END $$;")
-    _ = g.wait()
+    self.waitForExpectations(timeout: 3, handler: nil)
     p.finish()
   }
 }
