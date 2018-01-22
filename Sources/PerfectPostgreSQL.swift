@@ -42,11 +42,11 @@ public final class PGResult {
 	}
 	
 	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
-	var borrowed = false
+ 	var borrowed = false
 
-  init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
+ 	init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
 		self.res = res
-    self.borrowed = isBorrowed
+ 		self.borrowed = isBorrowed
 	}
 	
 	deinit {
@@ -61,9 +61,9 @@ public final class PGResult {
     /// clear and disconnect result object
 	public func clear() {
 		if let res = self.res {
-      if !self.borrowed {
-        PQclear(res)
-      }
+ 			if !self.borrowed {
+ 				PQclear(res)
+ 			}
 			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
