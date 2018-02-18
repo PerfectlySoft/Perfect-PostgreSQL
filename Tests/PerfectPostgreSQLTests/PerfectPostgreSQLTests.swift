@@ -22,6 +22,20 @@ import XCTest
 import PerfectCRUD
 @testable import PerfectPostgreSQL
 
+let testDBRowCount = 5
+let postgresTestDBName = "testing123"
+let postgresInitConnInfo = "host=localhost dbname=postgres"
+let postgresTestConnInfo = "host=localhost dbname=testing123"
+typealias DBConfiguration = PostgresDatabaseConfiguration
+func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
+	if reset {
+		let db = Database(configuration: try DBConfiguration(postgresInitConnInfo))
+		try db.sql("DROP DATABASE \(postgresTestDBName)")
+		try db.sql("CREATE DATABASE \(postgresTestDBName)")
+	}
+	return Database(configuration: try DBConfiguration(postgresInitConnInfo))
+}
+
 struct TestTable1: Codable, TableNameProvider {
 	enum CodingKeys: String, CodingKey {
 		case id, name, integer = "int", double = "doub", blob, subTables
@@ -33,6 +47,19 @@ struct TestTable1: Codable, TableNameProvider {
 	let double: Double?
 	let blob: [UInt8]?
 	let subTables: [TestTable2]?
+	init(id: Int,
+		 name: String? = nil,
+		 integer: Int? = nil,
+		 double: Double? = nil,
+		 blob: [UInt8]? = nil,
+		 subTables: [TestTable2]? = nil) {
+		self.id = id
+		self.name = name
+		self.integer = integer
+		self.double = double
+		self.blob = blob
+		self.subTables = subTables
+	}
 }
 
 struct TestTable2: Codable {
@@ -43,14 +70,28 @@ struct TestTable2: Codable {
 	let int: Int?
 	let doub: Double?
 	let blob: [UInt8]?
+	init(id: UUID,
+		 parentId: Int,
+		 date: Date,
+		 name: String? = nil,
+		 int: Int? = nil,
+		 doub: Double? = nil,
+		 blob: [UInt8]? = nil) {
+		self.id = id
+		self.parentId = parentId
+		self.date = date
+		self.name = name
+		self.int = int
+		self.doub = doub
+		self.blob = blob
+	}
 }
 
-let testDBRowCount = 5
-let postgresTestDBName = "testing123"
-let postgresInitConnInfo = "host=localhost dbname=postgres"
-let postgresTestConnInfo = "host=localhost dbname=testing123"
-
 class PerfectPostgreSQLTests: XCTestCase {
+	override func setUp() {
+		super.setUp()
+		
+	}
 	override func tearDown() {
 		CRUDLogging.flush()
 		super.tearDown()
@@ -58,69 +99,61 @@ class PerfectPostgreSQLTests: XCTestCase {
 	
 	func testCreate1() {
 		do {
-			do {
-				let db = Database(configuration: try PostgresDatabaseConfiguration(postgresInitConnInfo))
-				try db.sql("DROP DATABASE \(postgresTestDBName)")
-				try db.sql("CREATE DATABASE \(postgresTestDBName)")
-			}
-			let db = Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
+			let db = try getDB()
 			try db.create(TestTable1.self, policy: .dropTable)
 			do {
 				let t2 = db.table(TestTable2.self)
-				try t2.index(\TestTable2.parentId)
+				try t2.index(\.parentId)
 			}
 			let t1 = db.table(TestTable1.self)
 			let subId = UUID()
 			try db.transaction {
-				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 				try t1.insert(newOne)
-				let newSub1 = TestTable2(id: subId, parentId: 2000, date: Date(), name: "Me", int: nil, doub: nil, blob: nil)
-				let newSub2 = TestTable2(id: UUID(), parentId: 2000, date: Date(), name: "Not Me", int: nil, doub: nil, blob: nil)
+				let newSub1 = TestTable2(id: subId, parentId: 2000, date: Date(), name: "Me")
+				let newSub2 = TestTable2(id: UUID(), parentId: 2000, date: Date(), name: "Not Me")
 				let t2 = db.table(TestTable2.self)
 				try t2.insert([newSub1, newSub2])
 			}
-			let j2 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
-				.where(\TestTable1.id == 2000 && \TestTable2.name == "Me")
+			let j21 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
+			let j2 = j21.where(\TestTable1.id == 2000 && \TestTable2.name == "Me")
+			let j3 = j21.where(\TestTable1.id > 20 &&
+							!(\TestTable1.name == "Me" || \TestTable1.name == "You"))
+			XCTAssertEqual(try j3.count(), 1)
 			try db.transaction {
 				let j2a = try j2.select().map { $0 }
-				XCTAssert(try j2.count() == 1)
-				XCTAssert(j2a.count == 1)
+				XCTAssertEqual(try j2.count(), 1)
+				XCTAssertEqual(j2a.count, 1)
 				guard j2a.count == 1 else {
 					return
 				}
 				let obj = j2a[0]
-				XCTAssert(obj.id == 2000)
+				XCTAssertEqual(obj.id, 2000)
 				XCTAssertNotNil(obj.subTables)
 				let subTables = obj.subTables!
-				XCTAssert(subTables.count == 1)
+				XCTAssertEqual(subTables.count, 1)
 				let obj2 = subTables[0]
-				XCTAssert(obj2.id == subId)
+				XCTAssertEqual(obj2.id, subId)
 			}
 			try db.create(TestTable1.self)
 			do {
 				let j2a = try j2.select().map { $0 }
-				XCTAssert(try j2.count() == 1)
-				XCTAssert(j2a[0].id == 2000)
+				XCTAssertEqual(try j2.count(), 1)
+				XCTAssertEqual(j2a[0].id, 2000)
 			}
 			try db.create(TestTable1.self, policy: .dropTable)
 			do {
 				let j2b = try j2.select().map { $0 }
-				XCTAssert(j2b.count == 0)
+				XCTAssertEqual(j2b.count, 0)
 			}
 		} catch {
 			XCTAssert(false, "\(error)")
 		}
 	}
 	
-	func getTestDB() throws -> Database<PostgresDatabaseConfiguration> {
+	func getTestDB() throws -> Database<DBConfiguration> {
 		do {
-			do {
-				let db = Database(configuration: try PostgresDatabaseConfiguration(database: "postgres", host: "localhost"))
-				try db.sql("DROP DATABASE \(postgresTestDBName)")
-				try db.sql("CREATE DATABASE \(postgresTestDBName)")
-			}
-			
-			let db = Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
+			let db = try getDB()
 			try db.create(TestTable1.self, policy: .dropTable)
 			try db.transaction {
 				() -> () in
@@ -130,11 +163,10 @@ class PerfectPostgreSQLTests: XCTestCase {
 						let n = UInt8(num)
 						let blob: [UInt8]? = (num % 2 != 0) ? nil : [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
 						return TestTable1(id: num,
-										  name: "This is name bind \(num)",
+							name: "This is name bind \(num)",
 							integer: num,
 							double: Double(num),
-							blob: blob,
-							subTables: nil)
+							blob: blob)
 					})
 			}
 			try db.transaction {
@@ -149,7 +181,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 							return TestTable2(id: UUID(),
 											  parentId: parentId,
 											  date: Date(),
-											  name: num % 2 == 0 ? "This is name bind \(num)" : "Me",
+											  name: num % 2 == 0 ? "This is name bind \(num)" : "me",
 											  int: num,
 											  doub: Double(num),
 											  blob: blob)
@@ -159,7 +191,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		} catch {
 			XCTAssert(false, "\(error)")
 		}
-		return Database(configuration: try PostgresDatabaseConfiguration(database: postgresTestDBName, host: "localhost"))
+		return try getDB(reset: false)
 	}
 	
 	func testSelectAll() {
@@ -176,14 +208,41 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testSelectIn() {
+		do {
+			let db = try getTestDB()
+			let j2 = try db.table(TestTable1.self)
+				.where(\TestTable1.id ~ [2, 4])
+				.count()
+			XCTAssertEqual(j2, 2)
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testSelectLikeString() {
+		do {
+			let db = try getTestDB()
+			let table = db.table(TestTable2.self)
+			XCTAssertEqual(25, try table.where(\TestTable2.name %=% "me").count())
+			XCTAssertEqual(15, try table.where(\TestTable2.name =% "me").count())
+			XCTAssertEqual(15, try table.where(\TestTable2.name %= "me").count())
+			XCTAssertEqual( 0, try table.where(\TestTable2.name %!=% "me").count())
+			XCTAssertEqual(10, try table.where(\TestTable2.name !=% "me").count())
+			XCTAssertEqual(10, try table.where(\TestTable2.name %!= "me").count())
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
 	func testSelectJoin() {
 		do {
 			let db = try getTestDB()
 			let j2 = try db.table(TestTable1.self)
 				.order(by: \TestTable1.name)
 				.join(\.subTables, on: \.id, equals: \.parentId)
-				.order(by: \TestTable2.id)
-				.where(\TestTable2.name == "Me")
+				.order(by: \.id)
+				.where(\TestTable2.name == "me")
 			
 			let j2c = try j2.count()
 			let j2a = try j2.select().map{$0}
@@ -202,7 +261,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			let t1 = db.table(TestTable1.self)
-			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 			try t1.insert(newOne)
 			let j1 = t1.where(\TestTable1.id == newOne.id)
 			let j2 = try j1.select().map {$0}
@@ -217,7 +276,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			let t1 = db.table(TestTable1.self)
-			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 			try t1.insert(newOne, ignoreKeys: \TestTable1.integer)
 			let j1 = t1.where(\TestTable1.id == newOne.id)
 			let j2 = try j1.select().map {$0}
@@ -233,8 +292,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			let t1 = db.table(TestTable1.self)
-			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
-			let newTwo = TestTable1(id: 2001, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			let newTwo = TestTable1(id: 2001, name: "New One", integer: 40)
 			try t1.insert([newOne, newTwo], setKeys: \TestTable1.id, \TestTable1.integer)
 			let j1 = t1.where(\TestTable1.id == newOne.id)
 			let j2 = try j1.select().map {$0}
@@ -250,16 +309,17 @@ class PerfectPostgreSQLTests: XCTestCase {
 	func testUpdate() {
 		do {
 			let db = try getTestDB()
-			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
-			try db.transaction {
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			let newId: Int = try db.transaction {
 				try db.table(TestTable1.self).insert(newOne)
-				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 41, double: nil, blob: nil, subTables: nil)
+				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 41)
 				try db.table(TestTable1.self)
 					.where(\TestTable1.id == newOne.id)
-					.update(newOne2, setKeys: \TestTable1.name)
+					.update(newOne2, setKeys: \.name)
+				return newOne2.id
 			}
 			let j2 = try db.table(TestTable1.self)
-				.where(\TestTable1.id == newOne.id)
+				.where(\TestTable1.id == newId)
 				.select().map { $0 }
 			XCTAssert(j2.count == 1)
 			XCTAssert(j2[0].id == 2000)
@@ -274,18 +334,13 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			let t1 = db.table(TestTable1.self)
-			let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 			try t1.insert(newOne)
-			let j1 = try t1
-				.where(\TestTable1.id == newOne.id)
-				.select().map { $0 }
+			let query = t1.where(\TestTable1.id == newOne.id)
+			let j1 = try query.select().map { $0 }
 			XCTAssert(j1.count == 1)
-			try t1
-				.where(\TestTable1.id == newOne.id)
-				.delete()
-			let j2 = try t1
-				.where(\TestTable1.id == newOne.id)
-				.select().map { $0 }
+			try query.delete()
+			let j2 = try query.select().map { $0 }
 			XCTAssert(j2.count == 0)
 		} catch {
 			XCTAssert(false, "\(error)")
@@ -295,14 +350,14 @@ class PerfectPostgreSQLTests: XCTestCase {
 	func testCreate2() {
 		do {
 			let db = try getTestDB()
-			try db.create(TestTable1.self, policy: .dropTable)
+			try db.create(TestTable1.self, primaryKey: \.id, policy: .dropTable)
 			do {
 				let t2 = db.table(TestTable2.self)
-				try t2.index(\TestTable2.parentId)
+				try t2.index(\.parentId, \.date)
 			}
 			let t1 = db.table(TestTable1.self)
 			do {
-				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 				try t1.insert(newOne)
 			}
 			let j2 = try t1.where(\TestTable1.id == 2000).select()
@@ -321,6 +376,43 @@ class PerfectPostgreSQLTests: XCTestCase {
 			do {
 				let j2b = j2.map { $0 }
 				XCTAssert(j2b.count == 0)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testCreate3() {
+		struct FakeTestTable1: Codable, TableNameProvider {
+			enum CodingKeys: String, CodingKey {
+				case id, name, double = "doub", double2 = "doub2", blob, subTables
+			}
+			static let tableName = "test_table_1"
+			let id: Int
+			let name: String?
+			let double2: Double?
+			let double: Double?
+			let blob: [UInt8]?
+			let subTables: [TestTable2]?
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
+			
+			do {
+				let t1 = db.table(TestTable1.self)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+			}
+			do {
+				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
+				let t1 = db.table(FakeTestTable1.self)
+				let j2 = try t1.where(\FakeTestTable1.id == 2000).select()
+				do {
+					let j2a = j2.map { $0 }
+					XCTAssert(j2a.count == 1)
+					XCTAssert(j2a[0].id == 2000)
+				}
 			}
 		} catch {
 			XCTAssert(false, "\(error)")
@@ -351,43 +443,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
-	func testCreate3() {
-		struct FakeTestTable1: Codable, TableNameProvider {
-			enum CodingKeys: String, CodingKey {
-				case id, name, double = "doub", double2 = "doub2", blob, subTables
-			}
-			static let tableName = "test_table_1"
-			let id: Int
-			let name: String?
-			let double2: Double?
-			let double: Double?
-			let blob: [UInt8]?
-			let subTables: [TestTable2]?
-		}
-		do {
-			let db = try getTestDB()
-			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
-			
-			do {
-				let t1 = db.table(TestTable1.self)
-				let newOne = TestTable1(id: 2000, name: "New One", integer: 40, double: nil, blob: nil, subTables: nil)
-				try t1.insert(newOne)
-			}
-			do {
-				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
-				let t1 = db.table(FakeTestTable1.self)
-				let j2 = try t1.where(\FakeTestTable1.id == 2000).select()
-				do {
-					let j2a = j2.map { $0 }
-					XCTAssert(j2a.count == 1)
-					XCTAssert(j2a[0].id == 2000)
-				}
-			}
-		} catch {
-			XCTAssert(false, "\(error)")
-		}
-	}
-	
+	// this is the general-overview example used in the readme
 	func testPersonThing() {
 		do {
 			// CRUD can work with most Codable types.
@@ -465,9 +521,9 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 		do {
 			let db = try getTestDB()
-			try db.create(Parent.self)
-			try db.create(Child.self)
-			try db.create(Pivot.self)
+			try db.create(Parent.self).delete()
+			try db.create(Child.self).delete()
+			try db.create(Pivot.self).delete()
 			
 			try db.table(Parent.self).insert(Parent(id: 1, children: nil))
 			try db.table(Child.self).insert([Child(id: 1), Child(id: 2), Child(id: 3)])

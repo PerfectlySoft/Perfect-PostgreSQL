@@ -380,7 +380,9 @@ class PostgresExeDelegate: SQLExeDelegate {
 	
 	func hasNext() throws -> Bool {
 		if nil == results {
-			let r = try connection.exec(statement: sql, params: nextBindings.map { try bindOne(expr: $0.1) })
+			let r = try connection.exec(statement: sql,
+										params: nextBindings.map {
+											try bindOne(expr: $0.1) })
 			results = r
 			let status = r.status()
 			switch status {
@@ -409,7 +411,9 @@ class PostgresExeDelegate: SQLExeDelegate {
 		guard let results = self.results else {
 			return nil
 		}
-		let ret = KeyedDecodingContainer(PostgresCRUDRowReader<A>(results: results, tupleIndex: tupleIndex, fieldNames: fieldNames))
+		let ret = KeyedDecodingContainer(PostgresCRUDRowReader<A>(results: results,
+																  tupleIndex: tupleIndex,
+																  fieldNames: fieldNames))
 		tupleIndex += 1
 		return ret
 	}
@@ -437,7 +441,8 @@ class PostgresExeDelegate: SQLExeDelegate {
 		case .column(_), .and(_, _), .or(_, _),
 			 .equality(_, _), .inequality(_, _),
 			 .not(_), .lessThan(_, _), .lessThanEqual(_, _),
-			 .greaterThan(_, _), .greaterThanEqual(_, _), .keyPath(_):
+			 .greaterThan(_, _), .greaterThanEqual(_, _),
+			 .keyPath(_), .in(_, _), .like(_, _, _, _):
 			throw PostgresCRUDError("Asked to bind unsupported expression type: \(expr)")
 		}
 	}
