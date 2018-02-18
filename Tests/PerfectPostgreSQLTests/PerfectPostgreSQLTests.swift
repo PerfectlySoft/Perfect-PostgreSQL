@@ -151,6 +151,78 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testCreate2() {
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, primaryKey: \.id, policy: .dropTable)
+			do {
+				let t2 = db.table(TestTable2.self)
+				try t2.index(\.parentId, \.date)
+			}
+			let t1 = db.table(TestTable1.self)
+			do {
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+			}
+			let j2 = try t1.where(\TestTable1.id == 2000).select()
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssert(j2a.count == 1)
+				XCTAssert(j2a[0].id == 2000)
+			}
+			try db.create(TestTable1.self)
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssert(j2a.count == 1)
+				XCTAssert(j2a[0].id == 2000)
+			}
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let j2b = j2.map { $0 }
+				XCTAssert(j2b.count == 0)
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
+	func testCreate3() {
+		struct FakeTestTable1: Codable, TableNameProvider {
+			enum CodingKeys: String, CodingKey {
+				case id, name, double = "doub", double2 = "doub2", blob, subTables
+			}
+			static let tableName = "test_table_1"
+			let id: Int
+			let name: String?
+			let double2: Double?
+			let double: Double?
+			let blob: [UInt8]?
+			let subTables: [TestTable2]?
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
+			
+			do {
+				let t1 = db.table(TestTable1.self)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+			}
+			do {
+				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
+				let t1 = db.table(FakeTestTable1.self)
+				let j2 = try t1.where(\FakeTestTable1.id == 2000).select()
+				do {
+					let j2a = j2.map { $0 }
+					XCTAssert(j2a.count == 1)
+					XCTAssert(j2a[0].id == 2000)
+				}
+			}
+		} catch {
+			XCTAssert(false, "\(error)")
+		}
+	}
+	
 	func getTestDB() throws -> Database<DBConfiguration> {
 		do {
 			let db = try getDB()
@@ -347,78 +419,6 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
-	func testCreate2() {
-		do {
-			let db = try getTestDB()
-			try db.create(TestTable1.self, primaryKey: \.id, policy: .dropTable)
-			do {
-				let t2 = db.table(TestTable2.self)
-				try t2.index(\.parentId, \.date)
-			}
-			let t1 = db.table(TestTable1.self)
-			do {
-				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
-				try t1.insert(newOne)
-			}
-			let j2 = try t1.where(\TestTable1.id == 2000).select()
-			do {
-				let j2a = j2.map { $0 }
-				XCTAssert(j2a.count == 1)
-				XCTAssert(j2a[0].id == 2000)
-			}
-			try db.create(TestTable1.self)
-			do {
-				let j2a = j2.map { $0 }
-				XCTAssert(j2a.count == 1)
-				XCTAssert(j2a[0].id == 2000)
-			}
-			try db.create(TestTable1.self, policy: .dropTable)
-			do {
-				let j2b = j2.map { $0 }
-				XCTAssert(j2b.count == 0)
-			}
-		} catch {
-			XCTAssert(false, "\(error)")
-		}
-	}
-	
-	func testCreate3() {
-		struct FakeTestTable1: Codable, TableNameProvider {
-			enum CodingKeys: String, CodingKey {
-				case id, name, double = "doub", double2 = "doub2", blob, subTables
-			}
-			static let tableName = "test_table_1"
-			let id: Int
-			let name: String?
-			let double2: Double?
-			let double: Double?
-			let blob: [UInt8]?
-			let subTables: [TestTable2]?
-		}
-		do {
-			let db = try getTestDB()
-			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
-			
-			do {
-				let t1 = db.table(TestTable1.self)
-				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
-				try t1.insert(newOne)
-			}
-			do {
-				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
-				let t1 = db.table(FakeTestTable1.self)
-				let j2 = try t1.where(\FakeTestTable1.id == 2000).select()
-				do {
-					let j2a = j2.map { $0 }
-					XCTAssert(j2a.count == 1)
-					XCTAssert(j2a[0].id == 2000)
-				}
-			}
-		} catch {
-			XCTAssert(false, "\(error)")
-		}
-	}
-	
 	func testSelectLimit() {
 		do {
 			let db = try getTestDB()
@@ -545,6 +545,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testCreate2", testCreate2),
 		("testCreate3", testCreate3),
 		("testSelectAll", testSelectAll),
+		("testSelectIn", testSelectIn),
+		("testSelectLikeString", testSelectLikeString),
 		("testSelectJoin", testSelectJoin),
 		("testInsert1", testInsert1),
 		("testInsert2", testInsert2),
