@@ -181,21 +181,17 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 			return date as! T
 		}
 	}
-	
-	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-		fatalError("Not implimented")
+	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+		throw CRUDDecoderError("Unimplimented nestedContainer")
 	}
-	
-	func nestedUnkeyedContainer(forKey key: K) throws -> UnkeyedDecodingContainer {
-		fatalError("Not implimented")
+	func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
+		throw CRUDDecoderError("Unimplimented nestedUnkeyedContainer")
 	}
-	
 	func superDecoder() throws -> Decoder {
-		fatalError("Not implimented")
+		throw CRUDDecoderError("Unimplimented superDecoder")
 	}
-	
-	func superDecoder(forKey key: K) throws -> Decoder {
-		fatalError("Not implimented")
+	func superDecoder(forKey key: Key) throws -> Decoder {
+		throw CRUDDecoderError("Unimplimented superDecoder")
 	}
 }
 
