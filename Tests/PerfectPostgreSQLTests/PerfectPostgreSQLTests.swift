@@ -90,7 +90,6 @@ struct TestTable2: Codable {
 class PerfectPostgreSQLTests: XCTestCase {
 	override func setUp() {
 		super.setUp()
-		
 	}
 	override func tearDown() {
 		CRUDLogging.flush()
@@ -269,10 +268,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 	func testSelectAll() {
 		do {
 			let db = try getTestDB()
-			let j2 = try db.table(TestTable1.self)
-				.select().map { $0 }
-			XCTAssert(!j2.isEmpty)
-			for row in j2 {
+			let j2 = db.table(TestTable1.self)
+			for row in try j2.select() {
 				XCTAssertNil(row.subTables)
 			}
 		} catch {
@@ -392,12 +389,12 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let j2 = try db.table(TestTable1.self)
 				.where(\TestTable1.id == newId)
 				.select().map { $0 }
-			XCTAssert(j2.count == 1)
-			XCTAssert(j2[0].id == 2000)
-			XCTAssert(j2[0].name == "New One Updated")
-			XCTAssert(j2[0].integer == 40)
+			XCTAssertEqual(1, j2.count)
+			XCTAssertEqual(2000, j2[0].id)
+			XCTAssertEqual("New One Updated", j2[0].name)
+			XCTAssertEqual(40, j2[0].integer)
 		} catch {
-			XCTAssert(false, "\(error)")
+			XCTFail("\(error)")
 		}
 	}
 	
@@ -414,7 +411,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let j2 = try query.select().map { $0 }
 			XCTAssert(j2.count == 0)
 		} catch {
-			XCTAssert(false, "\(error)")
+			XCTFail("\(error)")
 		}
 	}
 	
@@ -424,7 +421,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let j2 = db.table(TestTable1.self).limit(3, skip: 2)
 			XCTAssert(try j2.count() == 3)
 		} catch {
-			print("\(error)")
+			XCTFail("\(error)")
 		}
 	}
 	
@@ -438,7 +435,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTAssert(try j2.count() > 0)
 			CRUDLogging.flush()
 		} catch {
-			print("\(error)")
+			XCTFail("\(error)")
 		}
 	}
 	
@@ -484,14 +481,13 @@ class PerfectPostgreSQLTests: XCTestCase {
 			}
 			// Let's find all people with the last name of Lars which have a phone number on planet 12.
 			let query = try personTable
-				.order(by: \.lastName, \.firstName)
+					.order(by: \.lastName, \.firstName)
 				.join(\.phoneNumbers, on: \.id, equals: \.personId)
-				.order(descending: \.planetCode)
+					.order(descending: \.planetCode)
 				.where(\Person.lastName == "Lars" && \PhoneNumber.planetCode == 12)
 				.select()
 			// Loop through them and print the names.
 			for user in query {
-				print("\(user.firstName) \(user.lastName)")
 				// We joined PhoneNumbers, so we should have values here.
 				guard let numbers = user.phoneNumbers else {
 					continue
@@ -502,40 +498,206 @@ class PerfectPostgreSQLTests: XCTestCase {
 			}
 			CRUDLogging.flush()
 		} catch {
-			XCTAssert(false, "\(error)")
+			XCTFail("\(error)")
 		}
 	}
 	
-	func testPivotJoin() {
-		struct Parent: Codable {
-			let id: Int
-			let children: [Child]?
-		}
-		struct Child: Codable {
-			let id: Int
-		}
-		struct Pivot: Codable {
-			let parentId: Int
-			let childId: Int
-		}
+	func testStandardJoin() {
 		do {
 			let db = try getTestDB()
-			try db.create(Parent.self).delete()
-			try db.create(Child.self).delete()
-			try db.create(Pivot.self).delete()
-			
-			try db.table(Parent.self).insert(Parent(id: 1, children: nil))
-			try db.table(Child.self).insert([Child(id: 1), Child(id: 2), Child(id: 3)])
-			try db.table(Pivot.self).insert([Pivot(parentId: 1, childId: 1), Pivot(parentId: 1, childId: 2), Pivot(parentId: 1, childId: 3)])
-			
-			let join = try db.table(Parent.self).join(\.children, with: Pivot.self, on: \.id, equals: \.parentId, and: \.id, is: \.childId)
-			guard let parent = try join.select().map({ $0 }).first else {
-				return XCTAssert(false)
+			struct Parent: Codable {
+				let id: Int
+				let children: [Child]?
+				init(id i: Int) {
+					id = i
+					children = nil
+				}
 			}
-			XCTAssert(parent.children?.count == 3)
+			struct Child: Codable {
+				let id: Int
+				let parentId: Int
+			}
+			try db.transaction {
+				try db.create(Parent.self, policy: [.shallow, .dropTable]).insert(
+					Parent(id: 1))
+				try db.create(Child.self, policy: [.shallow, .dropTable]).insert(
+					[Child(id: 1, parentId: 1),
+					 Child(id: 2, parentId: 1),
+					 Child(id: 3, parentId: 1)])
+			}
+			let join = try db.table(Parent.self)
+				.join(\.children,
+					  on: \.id,
+					  equals: \.parentId)
+				.where(\Parent.id == 1)
+			
+			guard let parent = try join.first() else {
+				return XCTFail("Failed to find parent id: 1")
+			}
+			guard let children = parent.children else {
+				return XCTFail("Parent had no children")
+			}
+			XCTAssertEqual(3, children.count)
+			for child in children {
+				XCTAssertEqual(child.parentId, parent.id)
+			}
 			CRUDLogging.flush()
 		} catch {
-			XCTAssert(false, "\(error)")
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testJunctionJoin() {
+		do {
+			struct Student: Codable {
+				let id: Int
+				let classes: [Class]?
+				init(id i: Int) {
+					id = i
+					classes = nil
+				}
+			}
+			struct Class: Codable {
+				let id: Int
+				let students: [Student]?
+				init(id i: Int) {
+					id = i
+					students = nil
+				}
+			}
+			struct StudentClasses: Codable {
+				let studentId: Int
+				let classId: Int
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				try db.create(Student.self, policy: [.dropTable, .shallow]).insert(
+					Student(id: 1))
+				try db.create(Class.self, policy: [.dropTable, .shallow]).insert([
+					Class(id: 1),
+					Class(id: 2),
+					Class(id: 3)])
+				try db.create(StudentClasses.self, policy: [.dropTable, .shallow]).insert([
+					StudentClasses(studentId: 1, classId: 1),
+					StudentClasses(studentId: 1, classId: 2),
+					StudentClasses(studentId: 1, classId: 3)])
+			}
+			let join = try db.table(Student.self)
+				.join(\.classes,
+					  with: StudentClasses.self,
+					  on: \.id,
+					  equals: \.studentId,
+					  and: \.id,
+					  is: \.classId)
+				.where(\Student.id == 1)
+			guard let student = try join.first() else {
+				return XCTFail("Failed to find student id: 1")
+			}
+			guard let classes = student.classes else {
+				return XCTFail("Student had no classes")
+			}
+			XCTAssertEqual(3, classes.count)
+			for aClass in classes {
+				let join = try db.table(Class.self)
+					.join(\.students,
+						  with: StudentClasses.self,
+						  on: \.id,
+						  equals: \.classId,
+						  and: \.id,
+						  is: \.studentId)
+					.where(\Class.id == aClass.id)
+				guard let found = try join.first() else {
+					XCTFail("Class with no students")
+					continue
+				}
+				guard nil != found.students?.first(where: { $0.id == student.id }) else {
+					XCTFail("Student not found in class")
+					continue
+				}
+			}
+			CRUDLogging.flush()
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelfJoin() {
+		do {
+			struct Me: Codable {
+				let id: Int
+				let parentId: Int
+				let mes: [Me]?
+				init(id i: Int, parentId p: Int) {
+					id = i
+					parentId = p
+					mes = nil
+				}
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				() -> () in
+				try db.create(Me.self, policy: .dropTable).insert([
+					Me(id: 1, parentId: 0),
+					Me(id: 2, parentId: 1),
+					Me(id: 3, parentId: 1),
+					Me(id: 4, parentId: 1),
+					Me(id: 5, parentId: 1)
+				])
+			}
+			let join = try db.table(Me.self)
+				.join(\.mes, on: \.id, equals: \.parentId)
+				.where(\Me.id == 1)
+			guard let me = try join.first() else {
+				return XCTFail("Unable to find me.")
+			}
+			guard let mes = me.mes else {
+				return XCTFail("Unable to find meesa.")
+			}
+			XCTAssertEqual(mes.count, 4)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelfJunctionJoin() {
+		do {
+			struct Me: Codable {
+				let id: Int
+				let us: [Me]?
+				init(id i: Int) {
+					id = i
+					us = nil
+				}
+			}
+			struct Us: Codable {
+				let you: Int
+				let them: Int
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				() -> () in
+				try db.create(Me.self, policy: .dropTable)
+					.insert((1...5).map { .init(id: $0) })
+				try db.create(Us.self, policy: .dropTable)
+					.insert((2...5).map { .init(you: 1, them: $0) })
+			}
+			let join = try db.table(Me.self)
+				.join(\.us,
+					  with: Us.self,
+					  on: \.id,
+					  equals: \.you,
+					  and: \.id,
+					  is: \.them)
+				.where(\Me.id == 1)
+			guard let me = try join.first() else {
+				return XCTFail("Unable to find me.")
+			}
+			guard let us = me.us else {
+				return XCTFail("Unable to find us.")
+			}
+			XCTAssertEqual(us.count, 4)
+		} catch {
+			XCTFail("\(error)")
 		}
 	}
 	
@@ -555,7 +717,10 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testSelectLimit", testSelectLimit),
 		("testSelectWhereNULL", testSelectWhereNULL),
 		("testPersonThing", testPersonThing),
-		("testPivotJoin", testPivotJoin)
+		("testStandardJoin", testStandardJoin),
+		("testJunctionJoin", testJunctionJoin),
+		("testSelfJoin", testSelfJoin),
+		("testSelfJunctionJoin", testSelfJunctionJoin)
 	]
 }
 
