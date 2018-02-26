@@ -337,7 +337,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			case .date:
 				typeName = "timestamp with time zone"
 			case .codable:
-				typeName = "text"//"json"
+				typeName = "jsonb"
 			}
 		}
 		let addendum: String
