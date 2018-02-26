@@ -701,6 +701,28 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testCodableProperty() {
+		do {
+			struct Sub: Codable {
+				let id: Int
+			}
+			struct Top: Codable {
+				let id: Int
+				let sub: Sub?
+			}
+			let db = try getTestDB()
+			try db.create(Top.self, policy: .dropTable)
+			let t1 = Top(id: 1, sub: Sub(id: 1))
+			try db.table(Top.self).insert(t1)
+			guard let top = try db.table(Top.self).where(\Top.id == 1).first() else {
+				return XCTFail("Unable to find top.")
+			}
+			XCTAssertEqual(top.sub?.id, t1.sub?.id)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -720,7 +742,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testStandardJoin", testStandardJoin),
 		("testJunctionJoin", testJunctionJoin),
 		("testSelfJoin", testSelfJoin),
-		("testSelfJunctionJoin", testSelfJunctionJoin)
+		("testSelfJunctionJoin", testSelfJunctionJoin),
+		("testCodableProperty", testCodableProperty)
 	]
 }
 
