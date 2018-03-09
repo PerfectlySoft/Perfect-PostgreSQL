@@ -29,7 +29,7 @@ public enum PostgreSQLError : Error {
 /// result object
 public final class PGResult {
 	
-    /// Result Status enum
+	/// Result Status enum
 	public enum StatusType {
 		case emptyQuery
 		case commandOK
@@ -48,15 +48,15 @@ public final class PGResult {
 	}
 	
 	deinit {
-		self.close()
+		close()
 	}
 	
-    /// close result object
+	/// close result object
 	public func close() {
-		self.clear()
+		clear()
 	}
 	
-    /// clear and disconnect result object
+	/// clear and disconnect result object
 	public func clear() {
 		if let res = self.res {
 			PQclear(res)
@@ -64,17 +64,20 @@ public final class PGResult {
 		}
 	}
 	
-    /// Result Status number as Int
+	/// Result Status number as Int
 	public func statusInt() -> Int {
-		let s = PQresultStatus(self.res!)
+		guard let res = self.res else {
+			return 0
+		}
+		let s = PQresultStatus(res)
 		return Int(s.rawValue)
 	}
 	
-    /// Result Status Value
+	/// Result Status Value
 	public func status() -> StatusType {
-        guard let res = self.res else {
-            return .unknown
-        }
+		guard let res = self.res else {
+			return .unknown
+		}
 		let s = PQresultStatus(res)
 		switch(s.rawValue) {
 		case PGRES_EMPTY_QUERY.rawValue:
@@ -97,58 +100,64 @@ public final class PGResult {
 		return .unknown
 	}
 	
-    /// Result Status Message
+	/// Result Status Message
 	public func errorMessage() -> String {
-        guard let res = self.res else {
-            return ""
-        }
+		guard let res = self.res else {
+			return ""
+		}
 		return String(validatingUTF8: PQresultErrorMessage(res)) ?? ""
 	}
 	
-    /// Result field count
+	/// Result field count
 	public func numFields() -> Int {
-        guard let res = self.res else {
-            return 0
-        }
+		guard let res = self.res else {
+			return 0
+		}
 		return Int(PQnfields(res))
 	}
 	
-    /// Field name for index value
+	/// Field name for index value
 	public func fieldName(index: Int) -> String? {
-		if let fn = PQfname(self.res!, Int32(index)) {
-			return String(validatingUTF8: fn) ?? ""
+		guard let res = self.res,
+				let fn = PQfname(res, Int32(index)),
+				let ret = String(validatingUTF8: fn) else {
+			return nil
 		}
-		return nil
+		return ret
 	}
 	
-    /// Field type for index value
+	/// Field type for index value
 	public func fieldType(index: Int) -> Oid? {
-		let fn = PQftype(self.res!, Int32(index))
+		guard let res = self.res else {
+			return nil
+		}
+		let fn = PQftype(res, Int32(index))
 		return fn
 	}
 	
-    /// number of rows (Tuples) returned in result
+	/// number of rows (Tuples) returned in result
 	public func numTuples() -> Int {
-        guard let res = self.res else {
-            return 0
-        }
+		guard let res = self.res else {
+			return 0
+		}
 		return Int(PQntuples(res))
 	}
 	
-    /// test null field at row index for field index
+	/// test null field at row index for field index
 	public func fieldIsNull(tupleIndex: Int, fieldIndex: Int) -> Bool {
-		return 1 == PQgetisnull(self.res!, Int32(tupleIndex), Int32(fieldIndex))
+		return 1 == PQgetisnull(res, Int32(tupleIndex), Int32(fieldIndex))
 	}
 	
-    /// return value for String field type with row and field indexes provided
+	/// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
-		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex), let v = PQgetvalue(self.res, Int32(tupleIndex), Int32(fieldIndex)) else {
+		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex),
+			let v = PQgetvalue(res, Int32(tupleIndex), Int32(fieldIndex)) else {
 			return nil
 		}
 		return String(validatingUTF8: v)
 	}
 	
-    /// return value for Int field type with row and field indexes provided
+	/// return value for Int field type with row and field indexes provided
 	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -156,7 +165,7 @@ public final class PGResult {
 		return Int(s)
 	}
 	
-    /// return value for Bool field type with row and field indexes provided
+	/// return value for Bool field type with row and field indexes provided
 	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -164,7 +173,7 @@ public final class PGResult {
 		return s == "t"
 	}
 	
-    /// return value for Int8 field type with row and field indexes provided
+	/// return value for Int8 field type with row and field indexes provided
 	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -172,7 +181,7 @@ public final class PGResult {
 		return Int8(s)
 	}
 	
-    /// return value for Int16 field type with row and field indexes provided
+	/// return value for Int16 field type with row and field indexes provided
 	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -180,7 +189,7 @@ public final class PGResult {
 		return Int16(s)
 	}
 	
-    /// return value for Int32 field type with row and field indexes provided
+	/// return value for Int32 field type with row and field indexes provided
 	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -188,7 +197,7 @@ public final class PGResult {
 		return Int32(s)
 	}
 	
-    /// return value for Int64 field type with row and field indexes provided
+	/// return value for Int64 field type with row and field indexes provided
 	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -196,7 +205,7 @@ public final class PGResult {
 		return Int64(s)
 	}
 	
-    /// return value for Double field type with row and field indexes provided
+	/// return value for Double field type with row and field indexes provided
 	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -204,7 +213,7 @@ public final class PGResult {
 		return Double(s)
 	}
 	
-    /// return value for Float field type with row and field indexes provided
+	/// return value for Float field type with row and field indexes provided
 	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -212,7 +221,7 @@ public final class PGResult {
 		return Float(s)
 	}
 	
-    /// return value for Blob field type with row and field indexes provided
+	/// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
@@ -275,7 +284,7 @@ public final class PGResult {
 /// connection management class
 public final class PGConnection {
 	
-    /// Connection Status enum
+	/// Connection Status enum
 	public enum StatusType {
 		case ok
 		case bad
@@ -284,53 +293,52 @@ public final class PGConnection {
 	var conn = OpaquePointer(bitPattern: 0)
 	var connectInfo: String = ""
 	
-    /// empty init
+	/// empty init
 	public init() {
 		
 	}
 	
 	deinit {
-		self.close()
+		close()
 	}
 	
-    /// Makes a new connection to the database server.
+	/// Makes a new connection to the database server.
 	public func connectdb(_ info: String) -> StatusType {
-		self.conn = PQconnectdb(info)
-		self.connectInfo = info
-		return self.status()
+		conn = PQconnectdb(info)
+		connectInfo = info
+		return status()
 	}
 	
-    /// Close db connection
+	/// Close db connection
 	public func close() {
-		self.finish()
+		finish()
 	}
 	
-    /// Closes the connection to the server. Also frees memory used by the PGconn object.
+	/// Closes the connection to the server. Also frees memory used by the PGconn object.
 	public func finish() {
-		if self.conn != nil {
-			PQfinish(self.conn)
-			self.conn = OpaquePointer(bitPattern: 0)
+		if conn != nil {
+			PQfinish(conn)
+			conn = OpaquePointer(bitPattern: 0)
 		}
 	}
 	
-    /// Returns the status of the connection.
+	/// Returns the status of the connection.
 	public func status() -> StatusType {
-		let status = PQstatus(self.conn)
+		let status = PQstatus(conn)
 		return status == CONNECTION_OK ? .ok : .bad
 	}
 	
-    /// Returns the error message most recently generated by an operation on the connection.
+	/// Returns the error message most recently generated by an operation on the connection.
 	public func errorMessage() -> String {
-		return String(validatingUTF8: PQerrorMessage(self.conn)) ?? ""
+		return String(validatingUTF8: PQerrorMessage(conn)) ?? ""
 	}
 	
-    /// Submits a command to the server and waits for the result.
+	/// Submits a command to the server and waits for the result.
 	public func exec(statement: String) -> PGResult {
-		return PGResult(PQexec(self.conn, statement))
+		return PGResult(PQexec(conn, statement))
 	}
 	
-	// !FIX! does not handle binary data
-    /// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
+	/// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
 	public func exec(statement: String, params: [Any?]) -> PGResult {
 		let count = params.count
 		let values = UnsafeMutablePointer<UnsafePointer<Int8>?>.allocate(capacity: count)
@@ -376,21 +384,21 @@ public final class PGConnection {
 				lengths[idx] = length
 				formats[idx] = 1
 			default:
-        if let pm = params[idx] {
-          asStrings.append("\(pm)")
-          var aa = [UInt8](asStrings.last!.utf8)
-          aa.append(0)
-          temps.append(aa)
-          values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
-        } else {
-          values[idx] = nil
-        }//end if
-        types[idx] = 0
-        lengths[idx] = 0
-        formats[idx] = 0
+				if let pm = params[idx] {
+					asStrings.append("\(pm)")
+					var aa = [UInt8](asStrings.last!.utf8)
+					aa.append(0)
+					temps.append(aa)
+					values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				} else {
+					values[idx] = nil
+				}//end if
+				types[idx] = 0
+				lengths[idx] = 0
+				formats[idx] = 0
 			}
 		}
-		let r = PQexecParams(self.conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
+		let r = PQexecParams(conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
 		return PGResult(r)
 	}
 	
@@ -432,7 +440,7 @@ public final class PGConnection {
 			throw PostgreSQLError.error("Failed to execute statement. status: \(status)")
 		}
 	}
-
+	
 	/// Executes a BEGIN, calls the provided closure and executes a ROLLBACK if an exception occurs or a COMMIT if no exception occurs.
 	///
 	/// - parameter closure: Block to be executed inside transaction
