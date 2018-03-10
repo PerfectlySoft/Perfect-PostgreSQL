@@ -380,7 +380,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 			let newId: Int = try db.transaction {
 				try db.table(TestTable1.self).insert(newOne)
-				let newOne2 = TestTable1(id: 2000, name: "New One Updated", integer: 41)
+				let newOne2 = TestTable1(id: 2000, name: "New👻One Updated", integer: 41)
 				try db.table(TestTable1.self)
 					.where(\TestTable1.id == newOne.id)
 					.update(newOne2, setKeys: \.name)
@@ -391,7 +391,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				.select().map { $0 }
 			XCTAssertEqual(1, j2.count)
 			XCTAssertEqual(2000, j2[0].id)
-			XCTAssertEqual("New One Updated", j2[0].name)
+			XCTAssertEqual("New👻One Updated", j2[0].name)
 			XCTAssertEqual(40, j2[0].integer)
 		} catch {
 			XCTFail("\(error)")
@@ -723,6 +723,234 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testBadDecoding() {
+		do {
+			struct Top: Codable, TableNameProvider {
+				static var tableName = "Top"
+				let id: Int
+			}
+			struct NTop: Codable, TableNameProvider {
+				static var tableName = "Top"
+				let nid: Int
+			}
+			let db = try getTestDB()
+			try db.create(Top.self, policy: .dropTable)
+			let t1 = Top(id: 1)
+			try db.table(Top.self).insert(t1)
+			_ = try db.table(NTop.self).first()
+			XCTFail("Should not have a valid object.")
+		} catch {}
+	}
+	
+	func testAllPrimTypes1() {
+		struct AllTypes: Codable {
+			let int: Int
+			let uint: UInt
+			let int64: Int64
+			let uint64: UInt64
+			let int32: Int32?
+			let uint32: UInt32?
+			let int16: Int16
+			let uint16: UInt16
+			let int8: Int8?
+			let uint8: UInt8?
+			let double: Double
+			let float: Float
+			let string: String
+			let bytes: [Int8]
+			let ubytes: [UInt8]?
+			let b: Bool
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes.self, policy: .dropTable)
+			let model = AllTypes(int: 1, uint: 2, int64: 3, uint64: 4, int32: 5, uint32: 6, int16: 7, uint16: 8, int8: 9, uint8: 10, double: 11, float: 12, string: "13", bytes: [1, 4], ubytes: [1, 4], b: true)
+			try db.table(AllTypes.self).insert(model)
+			
+			guard let f = try db.table(AllTypes.self).where(\AllTypes.int == 1).first() else {
+				return XCTFail("Nil result.")
+			}
+			XCTAssertEqual(model.int, f.int)
+			XCTAssertEqual(model.uint, f.uint)
+			XCTAssertEqual(model.int64, f.int64)
+			XCTAssertEqual(model.uint64, f.uint64)
+			XCTAssertEqual(model.int32, f.int32)
+			XCTAssertEqual(model.uint32, f.uint32)
+			XCTAssertEqual(model.int16, f.int16)
+			XCTAssertEqual(model.uint16, f.uint16)
+			XCTAssertEqual(model.int8, f.int8)
+			XCTAssertEqual(model.uint8, f.uint8)
+			XCTAssertEqual(model.double, f.double)
+			XCTAssertEqual(model.float, f.float)
+			XCTAssertEqual(model.string, f.string)
+			XCTAssertEqual(model.bytes, f.bytes)
+			XCTAssertEqual(model.ubytes!, f.ubytes!)
+			XCTAssertEqual(model.b, f.b)
+		} catch {
+			XCTFail("\(error)")
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes.self, policy: .dropTable)
+			let model = AllTypes(int: 1, uint: 2, int64: -3, uint64: 4, int32: nil, uint32: nil, int16: -7, uint16: 8, int8: nil, uint8: nil, double: -11, float: -12, string: "13", bytes: [1, 4], ubytes: nil, b: true)
+			try db.table(AllTypes.self).insert(model)
+			
+			guard let f = try db.table(AllTypes.self)
+				.where(\AllTypes.int == 1).first() else {
+				return XCTFail("Nil result.")
+			}
+			XCTAssertEqual(model.int, f.int)
+			XCTAssertEqual(model.uint, f.uint)
+			XCTAssertEqual(model.int64, f.int64)
+			XCTAssertEqual(model.uint64, f.uint64)
+			XCTAssertEqual(model.int32, f.int32)
+			XCTAssertEqual(model.uint32, f.uint32)
+			XCTAssertEqual(model.int16, f.int16)
+			XCTAssertEqual(model.uint16, f.uint16)
+			XCTAssertEqual(model.int8, f.int8)
+			XCTAssertEqual(model.uint8, f.uint8)
+			XCTAssertEqual(model.double, f.double)
+			XCTAssertEqual(model.float, f.float)
+			XCTAssertEqual(model.string, f.string)
+			XCTAssertEqual(model.bytes, f.bytes)
+			XCTAssertNil(f.ubytes)
+			XCTAssertEqual(model.b, f.b)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testAllPrimTypes2() {
+		struct AllTypes2: Codable {
+			 func equals(rhs: AllTypes2) -> Bool {
+				guard int == rhs.int && uint == rhs.uint &&
+					int64 == rhs.int64 && uint64 == rhs.uint64 &&
+					int32 == rhs.int32 && uint32 == rhs.uint32 &&
+					int16 == rhs.int16 && uint16 == rhs.uint16 &&
+					int8 == rhs.int8 && uint8 == rhs.uint8 else {
+						return false
+				}
+				guard double == rhs.double && float == rhs.float &&
+					string == rhs.string &&
+					b == rhs.b else {
+						return false
+				}
+				guard (bytes == nil && rhs.bytes == nil) || (bytes != nil && rhs.bytes != nil) else {
+					return false
+				}
+				guard (ubytes == nil && rhs.ubytes == nil) || (ubytes != nil && rhs.ubytes != nil) else {
+					return false
+				}
+				if let lhsb = bytes {
+					guard lhsb == rhs.bytes! else {
+						return false
+					}
+				}
+				if let lhsb = ubytes {
+					guard lhsb == rhs.ubytes! else {
+						return false
+					}
+				}
+				return true
+			}
+			let int: Int?
+			let uint: UInt?
+			let int64: Int64?
+			let uint64: UInt64?
+			let int32: Int32?
+			let uint32: UInt32?
+			let int16: Int16?
+			let uint16: UInt16?
+			let int8: Int8?
+			let uint8: UInt8?
+			let double: Double?
+			let float: Float?
+			let string: String?
+			let bytes: [Int8]?
+			let ubytes: [UInt8]?
+			let b: Bool?
+		}
+		
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes2.self, policy: .dropTable)
+			let model = AllTypes2(int: 1, uint: 2, int64: -3, uint64: 4, int32: 5, uint32: 6,
+								  int16: 7, uint16: 8, int8: 9, uint8: 10,
+								  double: 11.2, float: 12.3, string: "13",
+								  bytes: [1, 4], ubytes: [1, 4], b: true)
+			try db.table(AllTypes2.self).insert(model)
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.int == 1 &&
+						\AllTypes2.uint == 2 &&
+						\AllTypes2.int64 == -3).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.int != 1 &&
+						\AllTypes2.uint != 2 &&
+						\AllTypes2.int64 != -3).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.uint64 == 4 &&
+						\AllTypes2.int32 == 5 &&
+						\AllTypes2.uint32 == 6).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.uint64 != 4 &&
+						\AllTypes2.int32 != 5 &&
+						\AllTypes2.uint32 != 6).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.int16 == 7 &&
+						\AllTypes2.uint16 == 8 &&
+						\AllTypes2.int8 == 9 &&
+						\AllTypes2.uint8 == 10).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.int16 != 7 &&
+						\AllTypes2.uint16 != 8 &&
+						\AllTypes2.int8 != 9 &&
+						\AllTypes2.uint8 != 10).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.double == 11.2 &&
+						\AllTypes2.float == Float(12.3) &&
+						\AllTypes2.string == "13").first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.double != 11.2 &&
+						\AllTypes2.float != Float(12.3) &&
+						\AllTypes2.string != "13").count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.bytes == [1, 4] as [Int8] &&
+						\AllTypes2.ubytes == [1, 4] as [UInt8] &&
+						\AllTypes2.b == true).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.bytes != [1, 4] as [Int8] &&
+						\AllTypes2.ubytes != [1, 4] as [UInt8] &&
+						\AllTypes2.b != true).count(), 0)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -743,7 +971,10 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testJunctionJoin", testJunctionJoin),
 		("testSelfJoin", testSelfJoin),
 		("testSelfJunctionJoin", testSelfJunctionJoin),
-		("testCodableProperty", testCodableProperty)
+		("testCodableProperty", testCodableProperty),
+		("testBadDecoding", testBadDecoding),
+		("testAllPrimTypes1", testAllPrimTypes1),
+		("testAllPrimTypes2", testAllPrimTypes2)
 	]
 }
 

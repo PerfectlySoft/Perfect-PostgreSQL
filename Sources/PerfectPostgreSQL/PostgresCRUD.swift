@@ -427,11 +427,33 @@ class PostgresExeDelegate: SQLExeDelegate {
 			return try bindOne(expr: e())
 		case .integer(let i):
 			return i
+		case .uinteger(let i):
+			return i
+		case .integer64(let i):
+			return i
+		case .uinteger64(let i):
+			return i
+		case .integer32(let i):
+			return i
+		case .uinteger32(let i):
+			return i
+		case .integer16(let i):
+			return i
+		case .uinteger16(let i):
+			return i
+		case .integer8(let i):
+			return i
+		case .uinteger8(let i):
+			return i
 		case .decimal(let d):
 			return d
+		case .float(let f):
+			return f
 		case .string(let s):
 			return s
 		case .blob(let b):
+			return b
+		case .sblob(let b):
 			return b
 		case .bool(let b):
 			return b
