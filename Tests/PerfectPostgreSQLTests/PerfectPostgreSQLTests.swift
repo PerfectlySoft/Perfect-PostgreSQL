@@ -951,6 +951,16 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testBespokeSQL() {
+		do {
+			let db = try getTestDB()
+			let r = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName) WHERE id = 2", TestTable1.self)
+			XCTAssertEqual(r.count, 1)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -974,7 +984,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testCodableProperty", testCodableProperty),
 		("testBadDecoding", testBadDecoding),
 		("testAllPrimTypes1", testAllPrimTypes1),
-		("testAllPrimTypes2", testAllPrimTypes2)
+		("testAllPrimTypes2", testAllPrimTypes2),
+		("testBespokeSQL", testBespokeSQL)
 	]
 }
 
