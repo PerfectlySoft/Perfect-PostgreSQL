@@ -346,10 +346,10 @@ public final class PGConnection {
 		let lengths = UnsafeMutablePointer<Int32>.allocate(capacity: count)
 		let formats = UnsafeMutablePointer<Int32>.allocate(capacity: count)
 		defer {
-			values.deinitialize(count: count) ; values.deallocate(capacity: count)
-			types.deinitialize(count: count) ; types.deallocate(capacity: count)
-			lengths.deinitialize(count: count) ; lengths.deallocate(capacity: count)
-			formats.deinitialize(count: count) ; formats.deallocate(capacity: count)
+			values.deinitialize(count: count) ; values.deallocate()
+			types.deinitialize(count: count) ; types.deallocate()
+			lengths.deinitialize(count: count) ; lengths.deallocate()
+			formats.deinitialize(count: count) ; formats.deallocate()
 		}
 		var asStrings = [String]()
 		var temps = [[UInt8]]()
@@ -459,3 +459,23 @@ public final class PGConnection {
 		}
 	}
 }
+
+#if swift(>=4.1)
+#else
+// Added for Swift 4.0/4.1 compat
+extension UnsafeMutableRawBufferPointer {
+	static func allocate(byteCount: Int, alignment: Int) -> UnsafeMutableRawBufferPointer {
+		return allocate(count: byteCount)
+	}
+}
+extension UnsafeMutablePointer {
+	func deallocate() {
+		deallocate(capacity: 0)
+	}
+}
+extension Collection {
+	func compactMap<ElementOfResult>(_ transform: (Element) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+		return try flatMap(transform)
+	}
+}
+#endif
