@@ -30,64 +30,65 @@ typealias DBConfiguration = PostgresDatabaseConfiguration
 func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
 	if reset {
 		let db = Database(configuration: try DBConfiguration(postgresInitConnInfo))
-		try db.sql("DROP DATABASE \(postgresTestDBName)")
+		try? db.sql("DROP DATABASE \(postgresTestDBName)")
 		try db.sql("CREATE DATABASE \(postgresTestDBName)")
 	}
-	return Database(configuration: try DBConfiguration(postgresInitConnInfo))
-}
-
-struct TestTable1: Codable, TableNameProvider {
-	enum CodingKeys: String, CodingKey {
-		case id, name, integer = "int", double = "doub", blob, subTables
-	}
-	static let tableName = "test_table_1"
-	let id: Int
-	let name: String?
-	let integer: Int?
-	let double: Double?
-	let blob: [UInt8]?
-	let subTables: [TestTable2]?
-	init(id: Int,
-		 name: String? = nil,
-		 integer: Int? = nil,
-		 double: Double? = nil,
-		 blob: [UInt8]? = nil,
-		 subTables: [TestTable2]? = nil) {
-		self.id = id
-		self.name = name
-		self.integer = integer
-		self.double = double
-		self.blob = blob
-		self.subTables = subTables
-	}
-}
-
-struct TestTable2: Codable {
-	let id: UUID
-	let parentId: Int
-	let date: Date
-	let name: String?
-	let int: Int?
-	let doub: Double?
-	let blob: [UInt8]?
-	init(id: UUID,
-		 parentId: Int,
-		 date: Date,
-		 name: String? = nil,
-		 int: Int? = nil,
-		 doub: Double? = nil,
-		 blob: [UInt8]? = nil) {
-		self.id = id
-		self.parentId = parentId
-		self.date = date
-		self.name = name
-		self.int = int
-		self.doub = doub
-		self.blob = blob
-	}
+	return Database(configuration: try DBConfiguration(postgresTestConnInfo))
 }
 
 class PerfectPostgreSQLTests: XCTestCase {
+	// copy + paste from here into other CRUD driver projects
+	struct TestTable1: Codable, TableNameProvider {
+		enum CodingKeys: String, CodingKey {
+			case id, name, integer = "int", double = "doub", blob, subTables
+		}
+		static let tableName = "test_table_1"
+		let id: Int
+		let name: String?
+		let integer: Int?
+		let double: Double?
+		let blob: [UInt8]?
+		let subTables: [TestTable2]?
+		init(id: Int,
+			 name: String? = nil,
+			 integer: Int? = nil,
+			 double: Double? = nil,
+			 blob: [UInt8]? = nil,
+			 subTables: [TestTable2]? = nil) {
+			self.id = id
+			self.name = name
+			self.integer = integer
+			self.double = double
+			self.blob = blob
+			self.subTables = subTables
+		}
+	}
+	
+	struct TestTable2: Codable {
+		let id: UUID
+		let parentId: Int
+		let date: Date
+		let name: String?
+		let int: Int?
+		let doub: Double?
+		let blob: [UInt8]?
+		init(id: UUID,
+			 parentId: Int,
+			 date: Date,
+			 name: String? = nil,
+			 int: Int? = nil,
+			 doub: Double? = nil,
+			 blob: [UInt8]? = nil) {
+			self.id = id
+			self.parentId = parentId
+			self.date = date
+			self.name = name
+			self.int = int
+			self.doub = doub
+			self.blob = blob
+		}
+	}
+	
 	override func setUp() {
 		super.setUp()
 	}
@@ -117,7 +118,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let j21 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
 			let j2 = j21.where(\TestTable1.id == 2000 && \TestTable2.name == "Me")
 			let j3 = j21.where(\TestTable1.id > 20 &&
-							!(\TestTable1.name == "Me" || \TestTable1.name == "You"))
+				!(\TestTable1.name == "Me" || \TestTable1.name == "You"))
 			XCTAssertEqual(try j3.count(), 1)
 			try db.transaction {
 				let j2a = try j2.select().map { $0 }
@@ -234,7 +235,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 						let n = UInt8(num)
 						let blob: [UInt8]? = (num % 2 != 0) ? nil : [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
 						return TestTable1(id: num,
-							name: "This is name bind \(num)",
+										  name: "This is name bind \(num)",
 							integer: num,
 							double: Double(num),
 							blob: blob)
@@ -444,7 +445,6 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			// CRUD can work with most Codable types.
 			struct PhoneNumber: Codable {
-				let id: UUID
 				let personId: UUID
 				let planetCode: Int
 				let number: String
@@ -455,38 +455,50 @@ class PerfectPostgreSQLTests: XCTestCase {
 				let lastName: String
 				let phoneNumbers: [PhoneNumber]?
 			}
-			// CRUD usage begins by creating a database connection. The inputs for connecting to a database will differ depending on your client library.
-			// Create a `Database` object by providing a configuration. These examples will use SQLite for demonstration purposes.
+			
+			// CRUD usage begins by creating a database connection.
+			// The inputs for connecting to a database will differ depending on your client library.
+			// Create a `Database` object by providing a configuration.
+			// All code would be identical regardless of the datasource type.
 			let db = try getTestDB()
+			
 			// Create the table if it hasn't been done already.
 			// Table creates are recursive by default, so "PhoneNumber" is also created here.
 			try db.create(Person.self, policy: .reconcileTable)
+			
 			// Get a reference to the tables we will be inserting data into.
 			let personTable = db.table(Person.self)
 			let numbersTable = db.table(PhoneNumber.self)
+			
 			// Add an index for personId, if it does not already exist.
 			try numbersTable.index(\.personId)
+			
+			// Insert some sample data.
 			do {
 				// Insert some sample data.
-				let personId1 = UUID()
-				let personId2 = UUID()
-				try personTable.insert([
-					Person(id: personId1, firstName: "Owen", lastName: "Lars", phoneNumbers: nil),
-					Person(id: personId2, firstName: "Beru", lastName: "Lars", phoneNumbers: nil)])
+				let owen = Person(id: UUID(), firstName: "Owen", lastName: "Lars", phoneNumbers: nil)
+				let beru = Person(id: UUID(), firstName: "Beru", lastName: "Lars", phoneNumbers: nil)
+				
+				// Insert the people
+				try personTable.insert([owen, beru])
+				
+				// Give them some phone numbers
 				try numbersTable.insert([
-					PhoneNumber(id: UUID(), personId: personId1, planetCode: 12, number: "555-555-1212"),
-					PhoneNumber(id: UUID(), personId: personId1, planetCode: 15, number: "555-555-2222"),
-					PhoneNumber(id: UUID(), personId: personId2, planetCode: 12, number: "555-555-1212")
-					])
+					PhoneNumber(personId: owen.id, planetCode: 12, number: "555-555-1212"),
+					PhoneNumber(personId: owen.id, planetCode: 15, number: "555-555-2222"),
+					PhoneNumber(personId: beru.id, planetCode: 12, number: "555-555-1212")])
 			}
+			
+			// Perform a query.
 			// Let's find all people with the last name of Lars which have a phone number on planet 12.
 			let query = try personTable
-					.order(by: \.lastName, \.firstName)
+				.order(by: \.lastName, \.firstName)
 				.join(\.phoneNumbers, on: \.id, equals: \.personId)
-					.order(descending: \.planetCode)
+				.order(descending: \.planetCode)
 				.where(\Person.lastName == "Lars" && \PhoneNumber.planetCode == 12)
 				.select()
-			// Loop through them and print the names.
+			
+			// Loop through the results and print the names.
 			for user in query {
 				// We joined PhoneNumbers, so we should have values here.
 				guard let numbers = user.phoneNumbers else {
@@ -642,7 +654,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 					Me(id: 3, parentId: 1),
 					Me(id: 4, parentId: 1),
 					Me(id: 5, parentId: 1)
-				])
+					])
 			}
 			let join = try db.table(Me.self)
 				.join(\.mes, on: \.id, equals: \.parentId)
@@ -711,7 +723,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 				let sub: Sub?
 			}
 			let db = try getTestDB()
-			try db.create(Top.self, policy: .dropTable)
+			try db.create(Sub.self)
+			try db.create(Top.self)
 			let t1 = Top(id: 1, sub: Sub(id: 1))
 			try db.table(Top.self).insert(t1)
 			guard let top = try db.table(Top.self).where(\Top.id == 1).first() else {
@@ -797,7 +810,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			
 			guard let f = try db.table(AllTypes.self)
 				.where(\AllTypes.int == 1).first() else {
-				return XCTFail("Nil result.")
+					return XCTFail("Nil result.")
 			}
 			XCTAssertEqual(model.int, f.int)
 			XCTAssertEqual(model.uint, f.uint)
@@ -822,7 +835,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 	
 	func testAllPrimTypes2() {
 		struct AllTypes2: Codable {
-			 func equals(rhs: AllTypes2) -> Bool {
+			func equals(rhs: AllTypes2) -> Bool {
 				guard int == rhs.int && uint == rhs.uint &&
 					int64 == rhs.int64 && uint64 == rhs.uint64 &&
 					int32 == rhs.int32 && uint32 == rhs.uint32 &&
