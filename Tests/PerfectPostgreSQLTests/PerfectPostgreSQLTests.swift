@@ -19,241 +19,986 @@
 
 import Foundation
 import XCTest
+import PerfectCRUD
 @testable import PerfectPostgreSQL
 
+let testDBRowCount = 5
+let postgresTestDBName = "testing123"
+let postgresInitConnInfo = "host=localhost dbname=postgres"
+let postgresTestConnInfo = "host=localhost dbname=testing123"
+typealias DBConfiguration = PostgresDatabaseConfiguration
+func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
+	if reset {
+		let db = Database(configuration: try DBConfiguration(postgresInitConnInfo))
+		try? db.sql("DROP DATABASE \(postgresTestDBName)")
+		try db.sql("CREATE DATABASE \(postgresTestDBName)")
+	}
+	return Database(configuration: try DBConfiguration(postgresTestConnInfo))
+}
+
 class PerfectPostgreSQLTests: XCTestCase {
-    
-    let postgresTestConnInfo = "host=localhost dbname=postgres"
-    
-	override func setUp() {
-		super.setUp()
-		// Put setup code here. This method is called before the invocation of each test method in the class.
+	// copy + paste from here into other CRUD driver projects
+	struct TestTable1: Codable, TableNameProvider {
+		enum CodingKeys: String, CodingKey {
+			case id, name, integer = "int", double = "doub", blob, subTables
+		}
+		static let tableName = "test_table_1"
+		let id: Int
+		let name: String?
+		let integer: Int?
+		let double: Double?
+		let blob: [UInt8]?
+		let subTables: [TestTable2]?
+		init(id: Int,
+			 name: String? = nil,
+			 integer: Int? = nil,
+			 double: Double? = nil,
+			 blob: [UInt8]? = nil,
+			 subTables: [TestTable2]? = nil) {
+			self.id = id
+			self.name = name
+			self.integer = integer
+			self.double = double
+			self.blob = blob
+			self.subTables = subTables
+		}
 	}
 	
+	struct TestTable2: Codable {
+		let id: UUID
+		let parentId: Int
+		let date: Date
+		let name: String?
+		let int: Int?
+		let doub: Double?
+		let blob: [UInt8]?
+		init(id: UUID,
+			 parentId: Int,
+			 date: Date,
+			 name: String? = nil,
+			 int: Int? = nil,
+			 doub: Double? = nil,
+			 blob: [UInt8]? = nil) {
+			self.id = id
+			self.parentId = parentId
+			self.date = date
+			self.name = name
+			self.int = int
+			self.doub = doub
+			self.blob = blob
+		}
+	}
+	
+	override func setUp() {
+		super.setUp()
+	}
 	override func tearDown() {
-		// Put teardown code here. This method is called after the invocation of each test method in the class.
+		CRUDLogging.flush()
 		super.tearDown()
 	}
 	
-	func testConnect() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		
-		XCTAssert(status == .ok)
-		print(p.errorMessage())
-		p.finish()
-	}
-	
-	func testExec() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		
-		let res = p.exec(statement: "select * from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
-		
-		let num = res.numFields()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let fn = res.fieldName(index: x)
-			XCTAssertNotNil(fn)
-			print(fn!)
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testExecGetValues() {
-        let p = PGConnection()
-        let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		// name, oid, integer, boolean
-		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database")
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK)
-		
-		let num = res.numTuples()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.count)! > 0)
-			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
-			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
-			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testExecGetValuesParams() {
-        let p = PGConnection()
-        let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		// name, oid, integer, boolean
-		let res = p.exec(statement: "select datname,datdba,encoding,datistemplate from pg_database where encoding = $1", params: ["6"])
-		XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
-		
-		let num = res.numTuples()
-		XCTAssert(num > 0)
-		for x in 0..<num {
-			let c1 = res.getFieldString(tupleIndex: x, fieldIndex: 0)
-			XCTAssertTrue((c1?.count)! > 0)
-			let c2 = res.getFieldInt(tupleIndex: x, fieldIndex: 1)
-			let c3 = res.getFieldInt(tupleIndex: x, fieldIndex: 2)
-			let c4 = res.getFieldBool(tupleIndex: x, fieldIndex: 3)
-			print("c1=\(String(describing: c1)) c2=\(String(describing: c2)) c3=\(String(describing: c3)) c4=\(String(describing: c4))")
-		}
-		res.clear()
-		p.finish()
-	}
-	
-	func testAnyBinds() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		guard case .ok = status else {
-			return XCTAssert(status == .ok)
-		}
-		// name, oid, integer, boolean
-		_ = p.exec(statement: "DROP TABLE IF EXISTS films")
-		
-		for _ in 0..<200 {
-			
-			let res = p.exec(statement: "CREATE TABLE films (code char(5) PRIMARY KEY, title varchar(40) NOT NULL, did integer NOT NULL, date_prod date, kind1 bytea, kind2 bytea)")
-			XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
-			
-			let u = "ABCDEFGH".utf8.map { Int8($0) }
+	func testCreate1() {
+		do {
+			let db = try getDB()
+			try db.create(TestTable1.self, policy: .dropTable)
 			do {
-				let res = p.exec(statement: "INSERT INTO films (code, title, did, kind1, kind2) VALUES ($1, $2, $3, $4, $5)",
-				                 params: [1, "film title", 42, Data(bytes: u, count: u.count), u])
-				XCTAssertEqual(res.status(), PGResult.StatusType.commandOK, res.errorMessage())
+				let t2 = db.table(TestTable2.self)
+				try t2.index(\.parentId)
+			}
+			let t1 = db.table(TestTable1.self)
+			let subId = UUID()
+			try db.transaction {
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+				let newSub1 = TestTable2(id: subId, parentId: 2000, date: Date(), name: "Me")
+				let newSub2 = TestTable2(id: UUID(), parentId: 2000, date: Date(), name: "Not Me")
+				let t2 = db.table(TestTable2.self)
+				try t2.insert([newSub1, newSub2])
+			}
+			let j21 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
+			let j2 = j21.where(\TestTable1.id == 2000 && \TestTable2.name == "Me")
+			let j3 = j21.where(\TestTable1.id > 20 &&
+				!(\TestTable1.name == "Me" || \TestTable1.name == "You"))
+			XCTAssertEqual(try j3.count(), 1)
+			try db.transaction {
+				let j2a = try j2.select().map { $0 }
+				XCTAssertEqual(try j2.count(), 1)
+				XCTAssertEqual(j2a.count, 1)
+				guard j2a.count == 1 else {
+					return
+				}
+				let obj = j2a[0]
+				XCTAssertEqual(obj.id, 2000)
+				XCTAssertNotNil(obj.subTables)
+				let subTables = obj.subTables!
+				XCTAssertEqual(subTables.count, 1)
+				let obj2 = subTables[0]
+				XCTAssertEqual(obj2.id, subId)
+			}
+			try db.create(TestTable1.self)
+			do {
+				let j2a = try j2.select().map { $0 }
+				XCTAssertEqual(try j2.count(), 1)
+				XCTAssertEqual(j2a[0].id, 2000)
+			}
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let j2b = try j2.select().map { $0 }
+				XCTAssertEqual(j2b.count, 0)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testCreate2() {
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, primaryKey: \.id, policy: .dropTable)
+			do {
+				let t2 = db.table(TestTable2.self)
+				try t2.index(\.parentId, \.date)
+			}
+			let t1 = db.table(TestTable1.self)
+			do {
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+			}
+			let j2 = try t1.where(\TestTable1.id == 2000).select()
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssertEqual(j2a.count, 1)
+				XCTAssertEqual(j2a[0].id, 2000)
+			}
+			try db.create(TestTable1.self)
+			do {
+				let j2a = j2.map { $0 }
+				XCTAssertEqual(j2a.count, 1)
+				XCTAssertEqual(j2a[0].id, 2000)
+			}
+			try db.create(TestTable1.self, policy: .dropTable)
+			do {
+				let j2b = j2.map { $0 }
+				XCTAssertEqual(j2b.count, 0)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testCreate3() {
+		struct FakeTestTable1: Codable, TableNameProvider {
+			enum CodingKeys: String, CodingKey {
+				case id, name, double = "doub", double2 = "doub2", blob, subTables
+			}
+			static let tableName = "test_table_1"
+			let id: Int
+			let name: String?
+			let double2: Double?
+			let double: Double?
+			let blob: [UInt8]?
+			let subTables: [TestTable2]?
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
+			
+			do {
+				let t1 = db.table(TestTable1.self)
+				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+				try t1.insert(newOne)
+			}
+			do {
+				try db.create(FakeTestTable1.self, policy: [.reconcileTable, .shallow])
+				let t1 = db.table(FakeTestTable1.self)
+				let j2 = try t1.where(\FakeTestTable1.id == 2000).select()
+				do {
+					let j2a = j2.map { $0 }
+					XCTAssertEqual(j2a.count, 1)
+					XCTAssertEqual(j2a[0].id, 2000)
+				}
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func getTestDB() throws -> Database<DBConfiguration> {
+		do {
+			let db = try getDB()
+			try db.create(TestTable1.self, policy: .dropTable)
+			try db.transaction {
+				() -> () in
+				try db.table(TestTable1.self)
+					.insert((1...testDBRowCount).map {
+						num -> TestTable1 in
+						let n = UInt8(num)
+						let blob: [UInt8]? = (num % 2 != 0) ? nil : [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
+						return TestTable1(id: num,
+										  name: "This is name bind \(num)",
+							integer: num,
+							double: Double(num),
+							blob: blob)
+					})
+			}
+			try db.transaction {
+				() -> () in
+				try db.table(TestTable2.self)
+					.insert((1...testDBRowCount).flatMap {
+						parentId -> [TestTable2] in
+						return (1...testDBRowCount).map {
+							num -> TestTable2 in
+							let n = UInt8(num)
+							let blob: [UInt8]? = [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
+							return TestTable2(id: UUID(),
+											  parentId: parentId,
+											  date: Date(),
+											  name: num % 2 == 0 ? "This is name bind \(num)" : "me",
+											  int: num,
+											  doub: Double(num),
+											  blob: blob)
+						}
+					})
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+		return try getDB(reset: false)
+	}
+	
+	func testSelectAll() {
+		do {
+			let db = try getTestDB()
+			let j2 = db.table(TestTable1.self)
+			for row in try j2.select() {
+				XCTAssertNil(row.subTables)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectIn() {
+		do {
+			let db = try getTestDB()
+			let table = db.table(TestTable1.self)
+			XCTAssertEqual(2, try table.where(\TestTable1.id ~ [2, 4]).count())
+			XCTAssertEqual(3, try table.where(\TestTable1.id !~ [2, 4]).count())
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectLikeString() {
+		do {
+			let db = try getTestDB()
+			let table = db.table(TestTable2.self)
+			XCTAssertEqual(25, try table.where(\TestTable2.name %=% "me").count())
+			XCTAssertEqual(15, try table.where(\TestTable2.name =% "me").count())
+			XCTAssertEqual(15, try table.where(\TestTable2.name %= "me").count())
+			XCTAssertEqual( 0, try table.where(\TestTable2.name %!=% "me").count())
+			XCTAssertEqual(10, try table.where(\TestTable2.name !=% "me").count())
+			XCTAssertEqual(10, try table.where(\TestTable2.name %!= "me").count())
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectJoin() {
+		do {
+			let db = try getTestDB()
+			let j2 = try db.table(TestTable1.self)
+				.order(by: \TestTable1.name)
+				.join(\.subTables, on: \.id, equals: \.parentId)
+				.order(by: \.id)
+				.where(\TestTable2.name == "me")
+			
+			let j2c = try j2.count()
+			let j2a = try j2.select().map{$0}
+			let j2ac = j2a.count
+			XCTAssertNotEqual(j2c, 0)
+			XCTAssertEqual(j2c, j2ac)
+			j2a.forEach { row in
+				XCTAssertFalse(row.subTables?.isEmpty ?? true)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testInsert1() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			try t1.insert(newOne)
+			let j1 = t1.where(\TestTable1.id == newOne.id)
+			let j2 = try j1.select().map {$0}
+			XCTAssertEqual(try j1.count(), 1)
+			XCTAssertEqual(j2[0].id, 2000)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testInsert2() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			try t1.insert(newOne, ignoreKeys: \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == newOne.id)
+			let j2 = try j1.select().map {$0}
+			XCTAssertEqual(try j1.count(), 1)
+			XCTAssertEqual(j2[0].id, 2000)
+			XCTAssertNil(j2[0].integer)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testInsert3() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			let newTwo = TestTable1(id: 2001, name: "New One", integer: 40)
+			try t1.insert([newOne, newTwo], setKeys: \TestTable1.id, \TestTable1.integer)
+			let j1 = t1.where(\TestTable1.id == newOne.id)
+			let j2 = try j1.select().map {$0}
+			XCTAssertEqual(try j1.count(), 1)
+			XCTAssertEqual(j2[0].id, 2000)
+			XCTAssertEqual(j2[0].integer, 40)
+			XCTAssertNil(j2[0].name)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testUpdate() {
+		do {
+			let db = try getTestDB()
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			let newId: Int = try db.transaction {
+				try db.table(TestTable1.self).insert(newOne)
+				let newOne2 = TestTable1(id: 2000, name: "New👻One Updated", integer: 41)
+				try db.table(TestTable1.self)
+					.where(\TestTable1.id == newOne.id)
+					.update(newOne2, setKeys: \.name)
+				return newOne2.id
+			}
+			let j2 = try db.table(TestTable1.self)
+				.where(\TestTable1.id == newId)
+				.select().map { $0 }
+			XCTAssertEqual(1, j2.count)
+			XCTAssertEqual(2000, j2[0].id)
+			XCTAssertEqual("New👻One Updated", j2[0].name)
+			XCTAssertEqual(40, j2[0].integer)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testDelete() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
+			try t1.insert(newOne)
+			let query = t1.where(\TestTable1.id == newOne.id)
+			let j1 = try query.select().map { $0 }
+			XCTAssertEqual(j1.count, 1)
+			try query.delete()
+			let j2 = try query.select().map { $0 }
+			XCTAssertEqual(j2.count, 0)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectLimit() {
+		do {
+			let db = try getTestDB()
+			let j2 = db.table(TestTable1.self).limit(3, skip: 2)
+			XCTAssertEqual(try j2.count(), 3)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectWhereNULL() {
+		do {
+			let db = try getTestDB()
+			let t1 = db.table(TestTable1.self)
+			let j1 = t1.where(\TestTable1.blob == nil)
+			XCTAssert(try j1.count() > 0)
+			let j2 = t1.where(\TestTable1.blob != nil)
+			XCTAssert(try j2.count() > 0)
+			CRUDLogging.flush()
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	// this is the general-overview example used in the readme
+	func testPersonThing() {
+		do {
+			// CRUD can work with most Codable types.
+			struct PhoneNumber: Codable {
+				let personId: UUID
+				let planetCode: Int
+				let number: String
+			}
+			struct Person: Codable {
+				let id: UUID
+				let firstName: String
+				let lastName: String
+				let phoneNumbers: [PhoneNumber]?
 			}
 			
+			// CRUD usage begins by creating a database connection.
+			// The inputs for connecting to a database will differ depending on your client library.
+			// Create a `Database` object by providing a configuration.
+			// All code would be identical regardless of the datasource type.
+			let db = try getTestDB()
+			
+			// Create the table if it hasn't been done already.
+			// Table creates are recursive by default, so "PhoneNumber" is also created here.
+			try db.create(Person.self, policy: .reconcileTable)
+			
+			// Get a reference to the tables we will be inserting data into.
+			let personTable = db.table(Person.self)
+			let numbersTable = db.table(PhoneNumber.self)
+			
+			// Add an index for personId, if it does not already exist.
+			try numbersTable.index(\.personId)
+			
+			// Insert some sample data.
 			do {
-				let res = p.exec(statement: "SELECT code, title, did, kind1, kind2 FROM films")
-				XCTAssertEqual(res.status(), PGResult.StatusType.tuplesOK, res.errorMessage())
-				let num = res.numTuples()
-				XCTAssert(num == 1)
+				// Insert some sample data.
+				let owen = Person(id: UUID(), firstName: "Owen", lastName: "Lars", phoneNumbers: nil)
+				let beru = Person(id: UUID(), firstName: "Beru", lastName: "Lars", phoneNumbers: nil)
 				
-				let c1 = res.getFieldString(tupleIndex: 0, fieldIndex: 0)
-				XCTAssert(c1 == "1    ")
-				let c2 = res.getFieldString(tupleIndex: 0, fieldIndex: 1)
-				XCTAssert(c2 == "film title")
-				let c3 = res.getFieldInt(tupleIndex: 0, fieldIndex: 2)
-				XCTAssert(c3 == 42)
-				let c4 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 3)
-				XCTAssert(c4! == u)
-				let c5 = res.getFieldBlob(tupleIndex: 0, fieldIndex: 4)
-				XCTAssert(c5! == u)
+				// Insert the people
+				try personTable.insert([owen, beru])
+				
+				// Give them some phone numbers
+				try numbersTable.insert([
+					PhoneNumber(personId: owen.id, planetCode: 12, number: "555-555-1212"),
+					PhoneNumber(personId: owen.id, planetCode: 15, number: "555-555-2222"),
+					PhoneNumber(personId: beru.id, planetCode: 12, number: "555-555-1212")])
 			}
-			_ = p.exec(statement: "DROP TABLE films")
+			
+			// Perform a query.
+			// Let's find all people with the last name of Lars which have a phone number on planet 12.
+			let query = try personTable
+				.order(by: \.lastName, \.firstName)
+				.join(\.phoneNumbers, on: \.id, equals: \.personId)
+				.order(descending: \.planetCode)
+				.where(\Person.lastName == "Lars" && \PhoneNumber.planetCode == 12)
+				.select()
+			
+			// Loop through the results and print the names.
+			for user in query {
+				// We joined PhoneNumbers, so we should have values here.
+				guard let numbers = user.phoneNumbers else {
+					continue
+				}
+				for number in numbers {
+					print(number.number)
+				}
+			}
+			CRUDLogging.flush()
+		} catch {
+			XCTFail("\(error)")
 		}
-		p.finish()
-	}
-
-	func testEnsureStatusIsOk() {
-		let p = PGConnection()
-		XCTAssertThrowsError(try p.ensureStatusIsOk())
-		_ =  p.connectdb(postgresTestConnInfo)
-		XCTAssertNoThrow(try p.ensureStatusIsOk())
-		p.finish()
-		XCTAssertThrowsError(try p.ensureStatusIsOk())
-	}
-	
-	func testExecute() {
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		
-		// Exercise with statements that executes successfully
-		XCTAssertNoThrow(try p.execute(statement: "SELECT 3 * 4"))
-		XCTAssertNoThrow(try p.execute(statement: ""))
-		
-		// Exercise with statements that fails
-		XCTAssertThrowsError(try p.execute(statement: "INVALID_SQL_GARBAGE"))
-
-		p.finish()
 	}
 	
-	func testTransaction() {
-		// Setup
-		let p = PGConnection()
-		let status = p.connectdb(postgresTestConnInfo)
-		XCTAssert(status == .ok)
-		try! p.execute(statement: "DROP TABLE IF EXISTS planets")
-		try! p.execute(statement: "CREATE TABLE planets (id INTEGER PRIMARY KEY, name TEXT)")
-		
-		// Exercise COMMIT
-		let exerciseCommitClosure: () throws -> String = {
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [1, "Mercury"])
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [2, "Venus"])
-			return "I'm a value returned from the closure"
-		}
-		let result: String = try! p.doWithTransaction(closure: exerciseCommitClosure)
-		XCTAssertEqual(result, "I'm a value returned from the closure")
-		
-		// Exercise ROLLBACK
-		let exerciseRollbackClosure: () throws -> () = {
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [3, "Earth"])
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
-			// The following line exercises the ROLLBACK code by triggering a duplicate id error
-			try p.execute(statement: "INSERT INTO planets (id, name) VALUES ($1, $2)", params: [4, "Mars"])
-		}
-		XCTAssertThrowsError(try p.doWithTransaction(closure: exerciseRollbackClosure))
-		
-		// Verify that the `exerciseRollbackClosure` got ROLLBACK'ed by checking Earth does not exist
+	func testStandardJoin() {
 		do {
-			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Earth"])
-			let num = res.numTuples()
-			XCTAssertEqual(num, 0)
+			let db = try getTestDB()
+			struct Parent: Codable {
+				let id: Int
+				let children: [Child]?
+				init(id i: Int) {
+					id = i
+					children = nil
+				}
+			}
+			struct Child: Codable {
+				let id: Int
+				let parentId: Int
+			}
+			try db.transaction {
+				try db.create(Parent.self, policy: [.shallow, .dropTable]).insert(
+					Parent(id: 1))
+				try db.create(Child.self, policy: [.shallow, .dropTable]).insert(
+					[Child(id: 1, parentId: 1),
+					 Child(id: 2, parentId: 1),
+					 Child(id: 3, parentId: 1)])
+			}
+			let join = try db.table(Parent.self)
+				.join(\.children,
+					  on: \.id,
+					  equals: \.parentId)
+				.where(\Parent.id == 1)
+			
+			guard let parent = try join.first() else {
+				return XCTFail("Failed to find parent id: 1")
+			}
+			guard let children = parent.children else {
+				return XCTFail("Parent had no children")
+			}
+			XCTAssertEqual(3, children.count)
+			for child in children {
+				XCTAssertEqual(child.parentId, parent.id)
+			}
+			CRUDLogging.flush()
+		} catch {
+			XCTFail("\(error)")
 		}
-		// Verify that the `exerciseCommitClosure` got COMMIT'ted by checking that Mercury does exist
-		do {
-			let res = try! p.execute(statement: "SELECT name FROM planets WHERE name = $1", params: ["Mercury"])
-			let num = res.numTuples()
-			XCTAssertEqual(num, 1)
-		}
-
-		// Teardown
-		try! p.execute(statement: "DROP TABLE planets")
-		p.finish()
 	}
-}
-
-extension PerfectPostgreSQLTests {
-  func testNotice() {
-    let p = PGConnection()
-    let status = p.connectdb(postgresTestConnInfo)
-    XCTAssert(status == .ok)
-    let exp = expectation(description: "rec")
-    let rec = p.setReceiver { res in
-      XCTAssertEqual(res.numTuples(), 0)
-      XCTAssertEqual(res.numFields(), 0)
-      XCTAssertEqual(res.errorMessage(), "NOTICE:  hello, world\n")
-      exp.fulfill()
-    }
-    XCTAssertNotNil(rec)
-    let prc = p.setProcessor { messge in
-      print(messge)
-    }
-    XCTAssertNotNil(prc)
-    let _ = p.exec(statement: "DO language plpgsql $$BEGIN RAISE NOTICE 'hello, world'; END $$;")
-    self.waitForExpectations(timeout: 3, handler: nil)
-    p.finish()
-  }
-}
-extension PerfectPostgreSQLTests {
-    static var allTests : [(String, (PerfectPostgreSQLTests) -> () throws -> ())] {
-        return [
-            ("testNotice", testNotice),
-            ("testConnect", testConnect),
-            ("testExec", testExec),
-            ("testExecGetValues", testExecGetValues),
-            ("testExecGetValuesParams", testExecGetValuesParams),
-            ("testAnyBinds", testAnyBinds),
-            ("testEnsureStatusIsOk", testEnsureStatusIsOk),
-            ("testExecute", testExecute),
-            ("testTransaction", testTransaction)
-        ]
-    }
+	
+	func testJunctionJoin() {
+		do {
+			struct Student: Codable {
+				let id: Int
+				let classes: [Class]?
+				init(id i: Int) {
+					id = i
+					classes = nil
+				}
+			}
+			struct Class: Codable {
+				let id: Int
+				let students: [Student]?
+				init(id i: Int) {
+					id = i
+					students = nil
+				}
+			}
+			struct StudentClasses: Codable {
+				let studentId: Int
+				let classId: Int
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				try db.create(Student.self, policy: [.dropTable, .shallow]).insert(
+					Student(id: 1))
+				try db.create(Class.self, policy: [.dropTable, .shallow]).insert([
+					Class(id: 1),
+					Class(id: 2),
+					Class(id: 3)])
+				try db.create(StudentClasses.self, policy: [.dropTable, .shallow]).insert([
+					StudentClasses(studentId: 1, classId: 1),
+					StudentClasses(studentId: 1, classId: 2),
+					StudentClasses(studentId: 1, classId: 3)])
+			}
+			let join = try db.table(Student.self)
+				.join(\.classes,
+					  with: StudentClasses.self,
+					  on: \.id,
+					  equals: \.studentId,
+					  and: \.id,
+					  is: \.classId)
+				.where(\Student.id == 1)
+			guard let student = try join.first() else {
+				return XCTFail("Failed to find student id: 1")
+			}
+			guard let classes = student.classes else {
+				return XCTFail("Student had no classes")
+			}
+			XCTAssertEqual(3, classes.count)
+			for aClass in classes {
+				let join = try db.table(Class.self)
+					.join(\.students,
+						  with: StudentClasses.self,
+						  on: \.id,
+						  equals: \.classId,
+						  and: \.id,
+						  is: \.studentId)
+					.where(\Class.id == aClass.id)
+				guard let found = try join.first() else {
+					XCTFail("Class with no students")
+					continue
+				}
+				guard nil != found.students?.first(where: { $0.id == student.id }) else {
+					XCTFail("Student not found in class")
+					continue
+				}
+			}
+			CRUDLogging.flush()
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelfJoin() {
+		do {
+			struct Me: Codable {
+				let id: Int
+				let parentId: Int
+				let mes: [Me]?
+				init(id i: Int, parentId p: Int) {
+					id = i
+					parentId = p
+					mes = nil
+				}
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				() -> () in
+				try db.create(Me.self, policy: .dropTable).insert([
+					Me(id: 1, parentId: 0),
+					Me(id: 2, parentId: 1),
+					Me(id: 3, parentId: 1),
+					Me(id: 4, parentId: 1),
+					Me(id: 5, parentId: 1)
+					])
+			}
+			let join = try db.table(Me.self)
+				.join(\.mes, on: \.id, equals: \.parentId)
+				.where(\Me.id == 1)
+			guard let me = try join.first() else {
+				return XCTFail("Unable to find me.")
+			}
+			guard let mes = me.mes else {
+				return XCTFail("Unable to find meesa.")
+			}
+			XCTAssertEqual(mes.count, 4)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelfJunctionJoin() {
+		do {
+			struct Me: Codable {
+				let id: Int
+				let us: [Me]?
+				init(id i: Int) {
+					id = i
+					us = nil
+				}
+			}
+			struct Us: Codable {
+				let you: Int
+				let them: Int
+			}
+			let db = try getTestDB()
+			try db.transaction {
+				() -> () in
+				try db.create(Me.self, policy: .dropTable)
+					.insert((1...5).map { .init(id: $0) })
+				try db.create(Us.self, policy: .dropTable)
+					.insert((2...5).map { .init(you: 1, them: $0) })
+			}
+			let join = try db.table(Me.self)
+				.join(\.us,
+					  with: Us.self,
+					  on: \.id,
+					  equals: \.you,
+					  and: \.id,
+					  is: \.them)
+				.where(\Me.id == 1)
+			guard let me = try join.first() else {
+				return XCTFail("Unable to find me.")
+			}
+			guard let us = me.us else {
+				return XCTFail("Unable to find us.")
+			}
+			XCTAssertEqual(us.count, 4)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testCodableProperty() {
+		do {
+			struct Sub: Codable {
+				let id: Int
+			}
+			struct Top: Codable {
+				let id: Int
+				let sub: Sub?
+			}
+			let db = try getTestDB()
+			try db.create(Sub.self)
+			try db.create(Top.self)
+			let t1 = Top(id: 1, sub: Sub(id: 1))
+			try db.table(Top.self).insert(t1)
+			guard let top = try db.table(Top.self).where(\Top.id == 1).first() else {
+				return XCTFail("Unable to find top.")
+			}
+			XCTAssertEqual(top.sub?.id, t1.sub?.id)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testBadDecoding() {
+		do {
+			struct Top: Codable, TableNameProvider {
+				static var tableName = "Top"
+				let id: Int
+			}
+			struct NTop: Codable, TableNameProvider {
+				static var tableName = "Top"
+				let nid: Int
+			}
+			let db = try getTestDB()
+			try db.create(Top.self, policy: .dropTable)
+			let t1 = Top(id: 1)
+			try db.table(Top.self).insert(t1)
+			_ = try db.table(NTop.self).first()
+			XCTFail("Should not have a valid object.")
+		} catch {}
+	}
+	
+	func testAllPrimTypes1() {
+		struct AllTypes: Codable {
+			let int: Int
+			let uint: UInt
+			let int64: Int64
+			let uint64: UInt64
+			let int32: Int32?
+			let uint32: UInt32?
+			let int16: Int16
+			let uint16: UInt16
+			let int8: Int8?
+			let uint8: UInt8?
+			let double: Double
+			let float: Float
+			let string: String
+			let bytes: [Int8]
+			let ubytes: [UInt8]?
+			let b: Bool
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes.self, policy: .dropTable)
+			let model = AllTypes(int: 1, uint: 2, int64: 3, uint64: 4, int32: 5, uint32: 6, int16: 7, uint16: 8, int8: 9, uint8: 10, double: 11, float: 12, string: "13", bytes: [1, 4], ubytes: [1, 4], b: true)
+			try db.table(AllTypes.self).insert(model)
+			
+			guard let f = try db.table(AllTypes.self).where(\AllTypes.int == 1).first() else {
+				return XCTFail("Nil result.")
+			}
+			XCTAssertEqual(model.int, f.int)
+			XCTAssertEqual(model.uint, f.uint)
+			XCTAssertEqual(model.int64, f.int64)
+			XCTAssertEqual(model.uint64, f.uint64)
+			XCTAssertEqual(model.int32, f.int32)
+			XCTAssertEqual(model.uint32, f.uint32)
+			XCTAssertEqual(model.int16, f.int16)
+			XCTAssertEqual(model.uint16, f.uint16)
+			XCTAssertEqual(model.int8, f.int8)
+			XCTAssertEqual(model.uint8, f.uint8)
+			XCTAssertEqual(model.double, f.double)
+			XCTAssertEqual(model.float, f.float)
+			XCTAssertEqual(model.string, f.string)
+			XCTAssertEqual(model.bytes, f.bytes)
+			XCTAssertEqual(model.ubytes!, f.ubytes!)
+			XCTAssertEqual(model.b, f.b)
+		} catch {
+			XCTFail("\(error)")
+		}
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes.self, policy: .dropTable)
+			let model = AllTypes(int: 1, uint: 2, int64: -3, uint64: 4, int32: nil, uint32: nil, int16: -7, uint16: 8, int8: nil, uint8: nil, double: -11, float: -12, string: "13", bytes: [1, 4], ubytes: nil, b: true)
+			try db.table(AllTypes.self).insert(model)
+			
+			guard let f = try db.table(AllTypes.self)
+				.where(\AllTypes.int == 1).first() else {
+					return XCTFail("Nil result.")
+			}
+			XCTAssertEqual(model.int, f.int)
+			XCTAssertEqual(model.uint, f.uint)
+			XCTAssertEqual(model.int64, f.int64)
+			XCTAssertEqual(model.uint64, f.uint64)
+			XCTAssertEqual(model.int32, f.int32)
+			XCTAssertEqual(model.uint32, f.uint32)
+			XCTAssertEqual(model.int16, f.int16)
+			XCTAssertEqual(model.uint16, f.uint16)
+			XCTAssertEqual(model.int8, f.int8)
+			XCTAssertEqual(model.uint8, f.uint8)
+			XCTAssertEqual(model.double, f.double)
+			XCTAssertEqual(model.float, f.float)
+			XCTAssertEqual(model.string, f.string)
+			XCTAssertEqual(model.bytes, f.bytes)
+			XCTAssertNil(f.ubytes)
+			XCTAssertEqual(model.b, f.b)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testAllPrimTypes2() {
+		struct AllTypes2: Codable {
+			func equals(rhs: AllTypes2) -> Bool {
+				guard int == rhs.int && uint == rhs.uint &&
+					int64 == rhs.int64 && uint64 == rhs.uint64 &&
+					int32 == rhs.int32 && uint32 == rhs.uint32 &&
+					int16 == rhs.int16 && uint16 == rhs.uint16 &&
+					int8 == rhs.int8 && uint8 == rhs.uint8 else {
+						return false
+				}
+				guard double == rhs.double && float == rhs.float &&
+					string == rhs.string &&
+					b == rhs.b else {
+						return false
+				}
+				guard (bytes == nil && rhs.bytes == nil) || (bytes != nil && rhs.bytes != nil) else {
+					return false
+				}
+				guard (ubytes == nil && rhs.ubytes == nil) || (ubytes != nil && rhs.ubytes != nil) else {
+					return false
+				}
+				if let lhsb = bytes {
+					guard lhsb == rhs.bytes! else {
+						return false
+					}
+				}
+				if let lhsb = ubytes {
+					guard lhsb == rhs.ubytes! else {
+						return false
+					}
+				}
+				return true
+			}
+			let int: Int?
+			let uint: UInt?
+			let int64: Int64?
+			let uint64: UInt64?
+			let int32: Int32?
+			let uint32: UInt32?
+			let int16: Int16?
+			let uint16: UInt16?
+			let int8: Int8?
+			let uint8: UInt8?
+			let double: Double?
+			let float: Float?
+			let string: String?
+			let bytes: [Int8]?
+			let ubytes: [UInt8]?
+			let b: Bool?
+		}
+		
+		do {
+			let db = try getTestDB()
+			try db.create(AllTypes2.self, policy: .dropTable)
+			let model = AllTypes2(int: 1, uint: 2, int64: -3, uint64: 4, int32: 5, uint32: 6,
+								  int16: 7, uint16: 8, int8: 9, uint8: 10,
+								  double: 11.2, float: 12.3, string: "13",
+								  bytes: [1, 4], ubytes: [1, 4], b: true)
+			try db.table(AllTypes2.self).insert(model)
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.int == 1 &&
+						\AllTypes2.uint == 2 &&
+						\AllTypes2.int64 == -3).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.int != 1 &&
+						\AllTypes2.uint != 2 &&
+						\AllTypes2.int64 != -3).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.uint64 == 4 &&
+						\AllTypes2.int32 == 5 &&
+						\AllTypes2.uint32 == 6).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.uint64 != 4 &&
+						\AllTypes2.int32 != 5 &&
+						\AllTypes2.uint32 != 6).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.int16 == 7 &&
+						\AllTypes2.uint16 == 8 &&
+						\AllTypes2.int8 == 9 &&
+						\AllTypes2.uint8 == 10).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.int16 != 7 &&
+						\AllTypes2.uint16 != 8 &&
+						\AllTypes2.int8 != 9 &&
+						\AllTypes2.uint8 != 10).count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.double == 11.2 &&
+						\AllTypes2.float == Float(12.3) &&
+						\AllTypes2.string == "13").first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.double != 11.2 &&
+						\AllTypes2.float != Float(12.3) &&
+						\AllTypes2.string != "13").count(), 0)
+			}
+			do {
+				guard let f = try db.table(AllTypes2.self)
+					.where(\AllTypes2.bytes == [1, 4] as [Int8] &&
+						\AllTypes2.ubytes == [1, 4] as [UInt8] &&
+						\AllTypes2.b == true).first() else {
+							return XCTFail("Nil result.")
+				}
+				XCTAssert(model.equals(rhs: f), "\(model) != \(f)")
+				XCTAssertEqual(try db.table(AllTypes2.self)
+					.where(\AllTypes2.bytes != [1, 4] as [Int8] &&
+						\AllTypes2.ubytes != [1, 4] as [UInt8] &&
+						\AllTypes2.b != true).count(), 0)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testBespokeSQL() {
+		do {
+			let db = try getTestDB()
+			let r = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName) WHERE id = 2", TestTable1.self)
+			XCTAssertEqual(r.count, 1)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	static var allTests = [
+		("testCreate1", testCreate1),
+		("testCreate2", testCreate2),
+		("testCreate3", testCreate3),
+		("testSelectAll", testSelectAll),
+		("testSelectIn", testSelectIn),
+		("testSelectLikeString", testSelectLikeString),
+		("testSelectJoin", testSelectJoin),
+		("testInsert1", testInsert1),
+		("testInsert2", testInsert2),
+		("testInsert3", testInsert3),
+		("testUpdate", testUpdate),
+		("testDelete", testDelete),
+		("testSelectLimit", testSelectLimit),
+		("testSelectWhereNULL", testSelectWhereNULL),
+		("testPersonThing", testPersonThing),
+		("testStandardJoin", testStandardJoin),
+		("testJunctionJoin", testJunctionJoin),
+		("testSelfJoin", testSelfJoin),
+		("testSelfJunctionJoin", testSelfJunctionJoin),
+		("testCodableProperty", testCodableProperty),
+		("testBadDecoding", testBadDecoding),
+		("testAllPrimTypes1", testAllPrimTypes1),
+		("testAllPrimTypes2", testAllPrimTypes2),
+		("testBespokeSQL", testBespokeSQL)
+	]
 }
 
