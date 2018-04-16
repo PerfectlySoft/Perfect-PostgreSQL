@@ -514,8 +514,7 @@ public final class PGConnection {
   }
 }
 
-#if swift(>=4.1)
-#else
+#if !swift(>=4.1)
 // Added for Swift 4.0/4.1 compat
 extension UnsafeMutableRawBufferPointer {
 	static func allocate(byteCount: Int, alignment: Int) -> UnsafeMutableRawBufferPointer {

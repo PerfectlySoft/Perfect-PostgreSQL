@@ -475,6 +475,23 @@ class PostgresExeDelegate: SQLExeDelegate {
 
 public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	let connection: PGConnection
+	
+	public init(url: String?,
+				 name: String?,
+				 host: String?,
+				 port: Int?,
+				 user: String?,
+				 pass: String?) throws {
+		if let connectionInfo = url {
+			try self.init(connectionInfo)
+		} else {
+			guard let database = name, let host = host else {
+				throw PostgresCRUDError("Database name and host must be provided.")
+			}
+			try self.init(database: database, host: host, port: port, username: user, password: pass)
+		}
+	}
+	
 	public init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
 		var s = "host=\(host) dbname=\(database)"
 		if let p = port {
