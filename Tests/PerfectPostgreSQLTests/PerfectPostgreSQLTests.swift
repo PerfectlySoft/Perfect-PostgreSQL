@@ -426,6 +426,28 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testSelectLimitWhere() {
+		do {
+			let db = try getTestDB()
+			let j2 = db.table(TestTable1.self).limit(3).where(\TestTable1.id > 3)
+			XCTAssertEqual(try j2.count(), 2)
+			XCTAssertEqual(try j2.select().map{$0}.count, 2)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testSelectOrderLimitWhere() {
+		do {
+			let db = try getTestDB()
+			let j2 = db.table(TestTable1.self).order(by: \TestTable1.id).limit(3).where(\TestTable1.id > 3)
+			XCTAssertEqual(try j2.count(), 2)
+			XCTAssertEqual(try j2.select().map{$0}.count, 2)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	func testSelectWhereNULL() {
 		do {
 			let db = try getTestDB()
@@ -988,6 +1010,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testUpdate", testUpdate),
 		("testDelete", testDelete),
 		("testSelectLimit", testSelectLimit),
+		("testSelectLimitWhere", testSelectLimitWhere),
+		("testSelectOrderLimitWhere", testSelectOrderLimitWhere),
 		("testSelectWhereNULL", testSelectWhereNULL),
 		("testPersonThing", testPersonThing),
 		("testStandardJoin", testStandardJoin),
