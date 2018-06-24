@@ -270,7 +270,7 @@ public final class PGResult {
 			return nil
 		}
 		
-		newChar *= 16
+		newChar = newChar &* 16
 		
 		if c2v >= capA && c2v <= capF {
 			newChar += c2v - capA + 10
