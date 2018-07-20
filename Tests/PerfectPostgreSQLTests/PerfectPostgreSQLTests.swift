@@ -989,8 +989,14 @@ class PerfectPostgreSQLTests: XCTestCase {
 	func testBespokeSQL() {
 		do {
 			let db = try getTestDB()
-			let r = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName) WHERE id = 2", TestTable1.self)
-			XCTAssertEqual(r.count, 1)
+			do {
+				let r = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName) WHERE id = 2", TestTable1.self)
+				XCTAssertEqual(r.count, 1)
+			}
+			do {
+				let r = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName)", TestTable1.self)
+				XCTAssertEqual(r.count, 5)
+			}
 		} catch {
 			XCTFail("\(error)")
 		}
