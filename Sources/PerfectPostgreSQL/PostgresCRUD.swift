@@ -121,23 +121,23 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	}
 	
 	func decode(_ type: UInt.Type, forKey key: K) throws -> UInt {
-		return UInt(results.getFieldInt(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0)
+		return results.getFieldUInt(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
 	
 	func decode(_ type: UInt8.Type, forKey key: K) throws -> UInt8 {
-		return UInt8(results.getFieldInt8(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0)
+		return results.getFieldUInt8(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
 	
 	func decode(_ type: UInt16.Type, forKey key: K) throws -> UInt16 {
-		return UInt16(results.getFieldInt16(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0)
+		return results.getFieldUInt16(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
 	
 	func decode(_ type: UInt32.Type, forKey key: K) throws -> UInt32 {
-		return UInt32(results.getFieldInt32(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0)
+		return results.getFieldUInt32(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
 	
 	func decode(_ type: UInt64.Type, forKey key: K) throws -> UInt64 {
-		return UInt64(results.getFieldInt64(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0)
+		return results.getFieldUInt64(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
 	
 	func decode(_ type: Float.Type, forKey key: K) throws -> Float {

@@ -161,20 +161,20 @@ public final class PGResult {
 		return String(validatingUTF8: v)
 	}
 	
-	/// return value for Int field type with row and field indexes provided
-	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
-		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
-			return nil
-		}
-		return Int(s)
-	}
-	
 	/// return value for Bool field type with row and field indexes provided
 	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
 			return nil
 		}
 		return s == "t"
+	}
+	
+	/// return value for Int field type with row and field indexes provided
+	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return Int(s)
 	}
 	
 	/// return value for Int8 field type with row and field indexes provided
@@ -207,6 +207,46 @@ public final class PGResult {
 			return nil
 		}
 		return Int64(s)
+	}
+	
+	/// return value for Int field type with row and field indexes provided
+	public func getFieldUInt(tupleIndex: Int, fieldIndex: Int) -> UInt? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return UInt(s)
+	}
+	
+	/// return value for Int8 field type with row and field indexes provided
+	public func getFieldUInt8(tupleIndex: Int, fieldIndex: Int) -> UInt8? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return UInt8(s)
+	}
+	
+	/// return value for Int16 field type with row and field indexes provided
+	public func getFieldUInt16(tupleIndex: Int, fieldIndex: Int) -> UInt16? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return UInt16(s)
+	}
+	
+	/// return value for Int32 field type with row and field indexes provided
+	public func getFieldUInt32(tupleIndex: Int, fieldIndex: Int) -> UInt32? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return UInt32(s)
+	}
+	
+	/// return value for Int64 field type with row and field indexes provided
+	public func getFieldUInt64(tupleIndex: Int, fieldIndex: Int) -> UInt64? {
+		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
+			return nil
+		}
+		return UInt64(s)
 	}
 	
 	/// return value for Double field type with row and field indexes provided
