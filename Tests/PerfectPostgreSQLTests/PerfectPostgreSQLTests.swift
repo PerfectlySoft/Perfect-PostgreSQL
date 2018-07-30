@@ -419,8 +419,30 @@ class PerfectPostgreSQLTests: XCTestCase {
 	func testSelectLimit() {
 		do {
 			let db = try getTestDB()
-			let j2 = db.table(TestTable1.self).limit(3, skip: 2)
-			XCTAssertEqual(try j2.count(), 3)
+			do {
+				let j2 = db.table(TestTable1.self).limit(3, skip: 2)
+				XCTAssertEqual(try j2.count(), 3)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2...4)
+				XCTAssertEqual(try j2.count(), 3)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2..<5)
+				XCTAssertEqual(try j2.count(), 3)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(...2)
+				XCTAssertEqual(try j2.count(), 3)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(..<3)
+				XCTAssertEqual(try j2.count(), 3)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2...)
+				XCTAssertEqual(try j2.count(), 3)
+			}
 		} catch {
 			XCTFail("\(error)")
 		}
@@ -1002,6 +1024,67 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testModelClasses() {
+		class BaseClass: Codable {
+			let id: Int
+			let name: String
+			private enum CodingKeys: String, CodingKey {
+				case id, name
+			}
+			init(id: Int, name: String) {
+				self.id = id
+				self.name = name
+			}
+			required init(from decoder: Decoder) throws {
+				let container = try decoder.container(keyedBy: CodingKeys.self)
+				id = try container.decode(Int.self, forKey: .id)
+				name = try container.decode(String.self, forKey: .name)
+			}
+			func encode(to encoder: Encoder) throws {
+				var container = encoder.container(keyedBy: CodingKeys.self)
+				try container.encode(id, forKey: .id)
+				try container.encode(name, forKey: .name)
+			}
+		}
+		
+		class SubClass: BaseClass {
+			let another: String
+			private enum CodingKeys: String, CodingKey {
+				case another
+			}
+			init(id: Int, name: String, another: String) {
+				self.another = another
+				super.init(id: id, name: name)
+			}
+			required init(from decoder: Decoder) throws {
+				let container = try decoder.container(keyedBy: CodingKeys.self)
+				another = try container.decode(String.self, forKey: .another)
+				try super.init(from: decoder)
+			}
+			override func encode(to encoder: Encoder) throws {
+				var container = encoder.container(keyedBy: CodingKeys.self)
+				try container.encode(another, forKey: .another)
+				try super.encode(to: encoder)
+			}
+		}
+		
+		do {
+			let db = try getTestDB()
+			try db.create(SubClass.self)
+			let table = db.table(SubClass.self)
+			let obj = SubClass(id: 1, name: "The name", another: "And another thing")
+			try table.insert(obj)
+			
+			guard let found = try table.where(\SubClass.id == 1).first() else {
+				return XCTFail("Did not find SubClass")
+			}
+			XCTAssertEqual(found.another, obj.another)
+			XCTAssertEqual(found.name, obj.name)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -1028,7 +1111,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testBadDecoding", testBadDecoding),
 		("testAllPrimTypes1", testAllPrimTypes1),
 		("testAllPrimTypes2", testAllPrimTypes2),
-		("testBespokeSQL", testBespokeSQL)
+		("testBespokeSQL", testBespokeSQL),
+		("testModelClasses", testModelClasses)
 	]
 }
 
