@@ -74,7 +74,7 @@ extension PGResult {
 class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	typealias Key = K
 	var codingPath: [CodingKey] = []
-	var allKeys: [K] = []
+	var allKeys: [Key] = []
 	let results: PGResult
 	let tupleIndex: Int
 	let fieldNames: [String:Int]
@@ -83,76 +83,61 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 		tupleIndex = ti
 		fieldNames = fn
 	}
-	func contains(_ key: K) -> Bool {
-		return fieldNames[key.stringValue.lowercased()] != nil
-	}
-	func ensureIndex(forKey key: K) throws -> Int {
+	func ensureIndex(forKey key: Key) throws -> Int {
 		guard let index = fieldNames[key.stringValue.lowercased()] else {
 			throw PostgresCRUDError("No index for column \(key.stringValue)")
 		}
 		return index
 	}
-	func decodeNil(forKey key: K) throws -> Bool {
+	func contains(_ key: Key) -> Bool {
+		return fieldNames[key.stringValue.lowercased()] != nil
+	}
+	func decodeNil(forKey key: Key) throws -> Bool {
 		return results.fieldIsNull(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key))
 	}
-	
-	func decode(_ type: Bool.Type, forKey key: K) throws -> Bool {
+	func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
 		return results.getFieldBool(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? false
 	}
-	
-	func decode(_ type: Int.Type, forKey key: K) throws -> Int {
+	func decode(_ type: Int.Type, forKey key: Key) throws -> Int {
 		return results.getFieldInt(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Int8.Type, forKey key: K) throws -> Int8 {
+	func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 {
 		return results.getFieldInt8(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Int16.Type, forKey key: K) throws -> Int16 {
+	func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 {
 		return results.getFieldInt16(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Int32.Type, forKey key: K) throws -> Int32 {
+	func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 {
 		return results.getFieldInt32(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Int64.Type, forKey key: K) throws -> Int64 {
+	func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 {
 		return results.getFieldInt64(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: UInt.Type, forKey key: K) throws -> UInt {
+	func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt {
 		return results.getFieldUInt(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: UInt8.Type, forKey key: K) throws -> UInt8 {
+	func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 {
 		return results.getFieldUInt8(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: UInt16.Type, forKey key: K) throws -> UInt16 {
+	func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 {
 		return results.getFieldUInt16(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: UInt32.Type, forKey key: K) throws -> UInt32 {
+	func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 {
 		return results.getFieldUInt32(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: UInt64.Type, forKey key: K) throws -> UInt64 {
+	func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 {
 		return results.getFieldUInt64(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Float.Type, forKey key: K) throws -> Float {
+	func decode(_ type: Float.Type, forKey key: Key) throws -> Float {
 		return results.getFieldFloat(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: Double.Type, forKey key: K) throws -> Double {
+	func decode(_ type: Double.Type, forKey key: Key) throws -> Double {
 		return results.getFieldDouble(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? 0
 	}
-	
-	func decode(_ type: String.Type, forKey key: K) throws -> String {
+	func decode(_ type: String.Type, forKey key: Key) throws -> String {
 		return results.getFieldString(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? ""
 	}
-	
-	func decode<T>(_ type: T.Type, forKey key: K) throws -> T where T : Decodable {
+	func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T : Decodable {
 		let index = try ensureIndex(forKey: key)
 		guard let special = SpecialType(type) else {
 			throw CRUDDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
@@ -365,7 +350,7 @@ class PostgresExeDelegate: SQLExeDelegate {
 	let connection: PGConnection
 	let sql: String
 	var results: PGResult?
-	var tupleIndex = 0
+	var tupleIndex = -1
 	var numTuples = 0
 	var fieldNames: [String:Int] = [:]
 	init(connection c: PGConnection, sql s: String) {
@@ -382,6 +367,7 @@ class PostgresExeDelegate: SQLExeDelegate {
 	}
 	
 	func hasNext() throws -> Bool {
+		tupleIndex += 1
 		if nil == results {
 			let r = try connection.exec(statement: sql,
 										params: nextBindings.map {
@@ -417,7 +403,6 @@ class PostgresExeDelegate: SQLExeDelegate {
 		let ret = KeyedDecodingContainer(PostgresCRUDRowReader<A>(results: results,
 																  tupleIndex: tupleIndex,
 																  fieldNames: fieldNames))
-		tupleIndex += 1
 		return ret
 	}
 	
