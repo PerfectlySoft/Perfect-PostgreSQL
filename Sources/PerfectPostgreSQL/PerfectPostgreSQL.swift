@@ -42,11 +42,11 @@ public final class PGResult {
 	}
 	
 	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
- 	var borrowed = false
-
- 	init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
+	var borrowed = false
+	
+	init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
 		self.res = res
- 		self.borrowed = isBorrowed
+		self.borrowed = isBorrowed
 	}
 	
 	deinit {
@@ -61,9 +61,9 @@ public final class PGResult {
 	/// clear and disconnect result object
 	public func clear() {
 		if let res = self.res {
- 			if !self.borrowed {
- 				PQclear(res)
- 			}
+			if !self.borrowed {
+				PQclear(res)
+			}
 			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
@@ -123,9 +123,9 @@ public final class PGResult {
 	/// Field name for index value
 	public func fieldName(index: Int) -> String? {
 		guard let res = self.res,
-				let fn = PQfname(res, Int32(index)),
-				let ret = String(validatingUTF8: fn) else {
-			return nil
+			let fn = PQfname(res, Int32(index)),
+			let ret = String(validatingUTF8: fn) else {
+				return nil
 		}
 		return ret
 	}
@@ -156,7 +156,7 @@ public final class PGResult {
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
 		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex),
 			let v = PQgetvalue(res, Int32(tupleIndex), Int32(fieldIndex)) else {
-			return nil
+				return nil
 		}
 		return String(validatingUTF8: v)
 	}
@@ -382,6 +382,20 @@ public final class PGConnection {
 		return PGResult(PQexec(conn, statement))
 	}
 	
+	/// Sends data to the server during COPY_IN state.
+	public func putCopyData(data: String) {
+		PQputCopyData(self.conn, data, Int32(data.count))
+	}
+	
+	/// Sends end-of-data indication to the server during COPY_IN state.
+	/// If withError is set, the copy is forced to fail with the error description supplied.
+	public func putCopyEnd(withError: String? = nil) -> PGResult {
+		PQputCopyEnd(self.conn, withError)
+		let result = PGResult(PQgetResult(self.conn))
+		return result
+	}
+	
+	// !FIX! does not handle binary data
 	/// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
 	public func exec(statement: String, params: [Any?]) -> PGResult {
 		let count = params.count
@@ -502,56 +516,56 @@ public final class PGConnection {
 			throw error
 		}
 	}
-
-  /// Handler for receiving a PGResult
-  public typealias ReceiverProc = (PGResult) -> Void
-
-  /// Handler for processing a text message
-  public typealias ProcessorProc = (String) -> Void
-
-  /// internal callback for notice receiving
-  internal var receiver: ReceiverProc = { _ in }
-
-  /// internal callback for notice processing
-  internal var processor: ProcessorProc = { _ in }
-
-  /// Set a new notice receiver
-  /// - parameter handler: a closure to handle the incoming notice
-  /// - returns: a C convention function pointer; would be nil if failed to set.
-  public func setReceiver(_ handler: @escaping ReceiverProc) -> PQnoticeReceiver? {
-    guard let cn = self.conn else {
-      return nil
-    }
-    self.receiver = handler
-    let me = Unmanaged.passUnretained(self).toOpaque()
-    return PQsetNoticeReceiver(cn, { arg, result in
-      guard let pointer = arg, let res = result else {
-        return
-      }
-      let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
-      let pgresult = PGResult(res, isBorrowed: true)
-      this.receiver(pgresult)
-    }, me)
-  }
-
-  /// Set a new notice processor
-  /// - parameter handler: a closure to handle the incoming notice
-  /// - returns: a C convention function pointer; would be nil if failed to set.
-  public func setProcessor(_ handler: @escaping ProcessorProc) -> PQnoticeProcessor?{
-    guard let cn = self.conn else {
-      return nil
-    }
-    self.processor = handler
-    let me = Unmanaged.passUnretained(self).toOpaque()
-    return PQsetNoticeProcessor(cn, {arg, msg in
-      guard let pointer = arg, let message = msg else {
-        return
-      }
-      let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
-      let strmsg = String(cString: message)
-      this.processor(strmsg)
-    }, me)
-  }
+	
+	/// Handler for receiving a PGResult
+	public typealias ReceiverProc = (PGResult) -> Void
+	
+	/// Handler for processing a text message
+	public typealias ProcessorProc = (String) -> Void
+	
+	/// internal callback for notice receiving
+	internal var receiver: ReceiverProc = { _ in }
+	
+	/// internal callback for notice processing
+	internal var processor: ProcessorProc = { _ in }
+	
+	/// Set a new notice receiver
+	/// - parameter handler: a closure to handle the incoming notice
+	/// - returns: a C convention function pointer; would be nil if failed to set.
+	public func setReceiver(_ handler: @escaping ReceiverProc) -> PQnoticeReceiver? {
+		guard let cn = self.conn else {
+			return nil
+		}
+		self.receiver = handler
+		let me = Unmanaged.passUnretained(self).toOpaque()
+		return PQsetNoticeReceiver(cn, { arg, result in
+			guard let pointer = arg, let res = result else {
+				return
+			}
+			let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
+			let pgresult = PGResult(res, isBorrowed: true)
+			this.receiver(pgresult)
+		}, me)
+	}
+	
+	/// Set a new notice processor
+	/// - parameter handler: a closure to handle the incoming notice
+	/// - returns: a C convention function pointer; would be nil if failed to set.
+	public func setProcessor(_ handler: @escaping ProcessorProc) -> PQnoticeProcessor?{
+		guard let cn = self.conn else {
+			return nil
+		}
+		self.processor = handler
+		let me = Unmanaged.passUnretained(self).toOpaque()
+		return PQsetNoticeProcessor(cn, {arg, msg in
+			guard let pointer = arg, let message = msg else {
+				return
+			}
+			let this = Unmanaged<PGConnection>.fromOpaque(pointer).takeUnretainedValue()
+			let strmsg = String(cString: message)
+			this.processor(strmsg)
+		}, me)
+	}
 }
 
 #if !swift(>=4.1)
