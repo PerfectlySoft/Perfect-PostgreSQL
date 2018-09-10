@@ -1085,6 +1085,27 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testURL() {
+		do {
+			let db = try getTestDB()
+			struct TableWithURL: Codable {
+				let id: Int
+				let url: URL
+			}
+			try db.create(TableWithURL.self)
+			let t1 = db.table(TableWithURL.self)
+			let newOne = TableWithURL(id: 2000, url: URL(string: "http://localhost/")!)
+			try t1.insert(newOne)
+			let j1 = t1.where(\TableWithURL.id == newOne.id)
+			let j2 = try j1.select().map {$0}
+			XCTAssertEqual(try j1.count(), 1)
+			XCTAssertEqual(j2[0].id, 2000)
+			XCTAssertEqual(j2[0].url.absoluteString, "http://localhost/")
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -1112,7 +1133,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testAllPrimTypes1", testAllPrimTypes1),
 		("testAllPrimTypes2", testAllPrimTypes2),
 		("testBespokeSQL", testBespokeSQL),
-		("testModelClasses", testModelClasses)
+		("testModelClasses", testModelClasses),
+		("testURL", testURL)
 	]
 }
 

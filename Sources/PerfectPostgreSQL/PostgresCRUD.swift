@@ -164,6 +164,12 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 				throw CRUDDecoderError("Invalid Date string \(str).")
 			}
 			return date as! T
+		case .url:
+			let str = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: index) ?? ""
+			guard let url = URL(string: str) else {
+				throw CRUDDecoderError("Invalid URL string \(str).")
+			}
+			return url as! T
 		case .codable:
 			guard let data = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key))?.data(using: .utf8) else {
 				throw CRUDDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
@@ -321,6 +327,8 @@ class PostgresGenDelegate: SQLGenDelegate {
 				typeName = "uuid"
 			case .date:
 				typeName = "timestamp with time zone"
+			case .url:
+				typeName = "text"
 			case .codable:
 				typeName = "jsonb"
 			}
@@ -444,6 +452,8 @@ class PostgresExeDelegate: SQLExeDelegate {
 			return b
 		case .date(let d):
 			return d.iso8601()
+		case .url(let u):
+			return u.absoluteString
 		case .uuid(let u):
 			return u.uuidString
 		case .null:
