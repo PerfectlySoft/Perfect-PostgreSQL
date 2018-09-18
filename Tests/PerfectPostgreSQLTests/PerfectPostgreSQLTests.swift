@@ -420,28 +420,52 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			do {
-				let j2 = db.table(TestTable1.self).limit(3, skip: 2)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(2, skip: 2)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
 			}
 			do {
-				let j2 = db.table(TestTable1.self).limit(2...4)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(2...3)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
 			}
 			do {
-				let j2 = db.table(TestTable1.self).limit(2..<5)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(2..<4)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
 			}
 			do {
-				let j2 = db.table(TestTable1.self).limit(...2)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(...1)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
 			}
 			do {
-				let j2 = db.table(TestTable1.self).limit(..<3)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(..<2)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
 			}
 			do {
-				let j2 = db.table(TestTable1.self).limit(2...)
-				XCTAssertEqual(try j2.count(), 3)
+				let j2 = db.table(TestTable1.self).limit(3...)
+				XCTAssertEqual(try j2.select().map{$0}.count, 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2, skip: 2)
+				XCTAssertEqual(try j2.count(), 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2...3)
+				XCTAssertEqual(try j2.count(), 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(2..<4)
+				XCTAssertEqual(try j2.count(), 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(...1)
+				XCTAssertEqual(try j2.count(), 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(..<2)
+				XCTAssertEqual(try j2.count(), 2)
+			}
+			do {
+				let j2 = db.table(TestTable1.self).limit(3...)
+				XCTAssertEqual(try j2.count(), 2)
 			}
 		} catch {
 			XCTFail("\(error)")
