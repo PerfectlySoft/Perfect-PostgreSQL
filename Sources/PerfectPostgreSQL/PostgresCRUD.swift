@@ -381,6 +381,14 @@ class PostgresExeDelegate: SQLExeDelegate {
 										params: nextBindings.map {
 											try bindOne(expr: $0.1) })
 			results = r
+			guard r.isValid() else {
+				switch connection.status() {
+				case .ok:
+					throw CRUDSQLExeError("Fatal error on SQL execution")
+				case .bad:
+					throw CRUDSQLExeError(connection.errorMessage())
+				}
+			}
 			let status = r.status()
 			switch status {
 			case .emptyQuery:
@@ -514,4 +522,3 @@ public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 		return PostgresExeDelegate(connection: connection, sql: forSQL)
 	}
 }
-
