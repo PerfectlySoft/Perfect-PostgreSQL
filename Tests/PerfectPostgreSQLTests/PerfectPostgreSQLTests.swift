@@ -1194,6 +1194,57 @@ class PerfectPostgreSQLTests: XCTestCase {
 		XCTAssertNotNil(fmt3)
 	}
 	
+	func testAssets() {
+		struct Asset: Codable {
+			let id: UUID
+			let name: String?
+			let assetLog: [AssetLog]?
+			init(id i: UUID,
+				 name n: String? = nil,
+				 assetLog log: [AssetLog]? = nil) {
+				id = i
+				name = n
+				assetLog = log
+			}
+		}
+		
+		struct AssetLog: Codable {
+			let assetId: UUID
+			let userId: UUID
+			let taken: Double
+			let returned: Double?
+			init(assetId: UUID, userId: UUID, taken: Double, returned: Double? = nil) {
+				self.assetId = assetId
+				self.userId = userId
+				self.taken = taken
+				self.returned = returned
+			}
+		}
+		
+		do {
+			let db = try getTestDB()
+			try db.create(Asset.self, policy: .dropTable)
+			let id = UUID()
+			let userId = UUID()
+			do {
+				let asset = Asset(id: id, name: "name")
+				try db.table(Asset.self).insert(asset)
+				let assetLogs = [AssetLog(assetId: id, userId: userId, taken: 1.0),
+								 AssetLog(assetId: id, userId: userId, taken: 2.0)]
+				try db.table(AssetLog.self).insert(assetLogs)
+			}
+			let assetTable = db.table(Asset.self)
+			let asset = try assetTable.join(\.assetLog, on: \.id, equals: \.assetId)
+				.where(\AssetLog.userId == userId && \AssetLog.returned == nil).first()
+			XCTAssertNotNil(asset?.assetLog)
+			XCTAssertEqual(asset?.id, id)
+			XCTAssertEqual(asset?.assetLog?.count, 2)
+		} catch {
+			XCTFail("\(error)")
+		}
+		
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -1224,7 +1275,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testModelClasses", testModelClasses),
 		("testURL", testURL),
 		("testManyJoins", testManyJoins),
-		("testDateFormat", testDateFormat)
+		("testDateFormat", testDateFormat),
+		("testAssets", testAssets)
 	]
 }
 
