@@ -1245,34 +1245,74 @@ class PerfectPostgreSQLTests: XCTestCase {
 		
 	}
 	
-	func testReturning() {
+	func testReturningInsert() {
 		do {
 			let db = try getTestDB()
-			struct ReturningItem: Codable {
+			struct ReturningItem: Codable, Equatable {
 				let id: UUID
-				let rnd: Int?
+				let def: Int?
+				init(id: UUID, def: Int? = nil) {
+					self.id = id
+					self.def = def
+				}
 			}
 			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
-			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id UUID PRIMARY KEY, rnd int DEFAULT 42)")
+			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id UUID PRIMARY KEY, def int DEFAULT 42)")
 			let table = db.table(ReturningItem.self)
 			do {
-				let item = ReturningItem(id: UUID(), rnd: nil)
-				let rnd = try table.insert(item, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
-				XCTAssertEqual(rnd, 42)
+				let item = ReturningItem(id: UUID())
+				let def = try table.returning(\.def, insert: item, ignoreKeys: \.def)
+				XCTAssertEqual(def, 42)
 			}
 			do {
-				let items = [ReturningItem(id: UUID(), rnd: nil),
-							 ReturningItem(id: UUID(), rnd: nil),
-							 ReturningItem(id: UUID(), rnd: nil)]
-				let rnds = try table.insert(items, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
-				XCTAssertEqual(rnds, [42, 42, 42])
+				let items = [ReturningItem(id: UUID()),
+							 ReturningItem(id: UUID()),
+							 ReturningItem(id: UUID())]
+				let defs = try table.returning(\.def, insert: items, ignoreKeys: \.def)
+				XCTAssertEqual(defs, [42, 42, 42])
 			}
 			do {
 				let id = UUID()
-				let item = ReturningItem(id: id, rnd: 42)
-				let id0 = try table.insert(item, returning: \.id)
+				let item = ReturningItem(id: id, def: 42)
+				let id0 = try table.returning(\.id, insert: item)
 				XCTAssertEqual(id0, id)
 			}
+			do {
+				let items = [ReturningItem(id: UUID()),
+							 ReturningItem(id: UUID()),
+							 ReturningItem(id: UUID())]
+				let defs = try table.returning(insert: items, ignoreKeys: \.def)
+				XCTAssertEqual(defs.map{$0.id}, items.map{$0.id})
+				XCTAssertEqual(defs.compactMap{$0.def}.count, defs.count)
+			}
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
+	func testReturningUpdate() {
+		do {
+			let db = try getTestDB()
+			struct ReturningItem: Codable, Equatable {
+				let id: UUID
+				var def: Int?
+				init(id: UUID, def: Int? = nil) {
+					self.id = id
+					self.def = def
+				}
+			}
+			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
+			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id UUID PRIMARY KEY, def int DEFAULT 42)")
+			let table = db.table(ReturningItem.self)
+			let id = UUID()
+			var item = ReturningItem(id: id)
+			try table.insert(item, ignoreKeys: \.def)
+			item.def = 300
+			let item0 = try table
+				.where(\ReturningItem.id == id)
+				.returning(\.def, update: item, ignoreKeys: \.id)
+			XCTAssertEqual(item0.count, 1)
+			XCTAssertEqual(item.def, item0.first)
 		} catch {
 			XCTFail("\(error)")
 		}
@@ -1310,7 +1350,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testManyJoins", testManyJoins),
 		("testDateFormat", testDateFormat),
 		("testAssets", testAssets),
-		("testReturning", testReturning)
+		("testReturningInsert", testReturningInsert),
+		("testReturningUpdate", testReturningUpdate)
 	]
 }
 
