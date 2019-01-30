@@ -171,10 +171,23 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 			}
 			return url as! T
 		case .codable:
-			guard let data = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key))?.data(using: .utf8) else {
+			guard let data0 = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) else {
 				throw CRUDDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
 			}
-			return try JSONDecoder().decode(type, from: data)
+			if type == String.self {
+				return data0 as! T
+			}
+			let container = data0.count >= 1 && (data0[data0.startIndex] == "[" || data0[data0.startIndex] == "{")
+			guard let data = data0.data(using: .utf8) else {
+				throw CRUDDecoderError("Invalid data for type: \(type) for key: \(key.stringValue)")
+			}
+			if container {
+				return try JSONDecoder().decode(type, from: data)
+			}
+			guard let obj = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? T else {
+				throw CRUDDecoderError("Invalid data for type: \(type) for key: \(key.stringValue)")
+			}
+			return obj
 		}
 	}
 	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
@@ -372,6 +385,12 @@ class PostgresExeDelegate: SQLExeDelegate {
 		} else {
 			nextBindings = nextBindings[0..<skip] + bindings
 		}
+	}
+	
+	func resetResults() {
+		tupleIndex = -1
+		numTuples = 0
+		results = nil
 	}
 	
 	func hasNext() throws -> Bool {

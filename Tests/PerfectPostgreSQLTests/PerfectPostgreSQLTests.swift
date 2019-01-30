@@ -1245,6 +1245,26 @@ class PerfectPostgreSQLTests: XCTestCase {
 		
 	}
 	
+	func testReturning() {
+		do {
+			let db = try getTestDB()
+			struct ReturningItem: Codable {
+				let id: UUID
+				let rnd: Int?
+			}
+			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
+			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id UUID PRIMARY KEY, rnd int DEFAULT 42)")
+			
+			let items = [ReturningItem(id: UUID(), rnd: nil),
+						 ReturningItem(id: UUID(), rnd: nil),
+						 ReturningItem(id: UUID(), rnd: nil)]
+			let rnd = try db.table(ReturningItem.self).insert(items, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
+			XCTAssertEqual(rnd, [42, 42, 42])
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
