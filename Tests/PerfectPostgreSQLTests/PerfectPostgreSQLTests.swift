@@ -1254,12 +1254,25 @@ class PerfectPostgreSQLTests: XCTestCase {
 			}
 			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
 			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id UUID PRIMARY KEY, rnd int DEFAULT 42)")
-			
-			let items = [ReturningItem(id: UUID(), rnd: nil),
-						 ReturningItem(id: UUID(), rnd: nil),
-						 ReturningItem(id: UUID(), rnd: nil)]
-			let rnd = try db.table(ReturningItem.self).insert(items, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
-			XCTAssertEqual(rnd, [42, 42, 42])
+			let table = db.table(ReturningItem.self)
+			do {
+				let item = ReturningItem(id: UUID(), rnd: nil)
+				let rnd = try table.insert(item, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
+				XCTAssertEqual(rnd, 42)
+			}
+			do {
+				let items = [ReturningItem(id: UUID(), rnd: nil),
+							 ReturningItem(id: UUID(), rnd: nil),
+							 ReturningItem(id: UUID(), rnd: nil)]
+				let rnds = try table.insert(items, returning: \ReturningItem.rnd, ignoreKeys: \ReturningItem.rnd)
+				XCTAssertEqual(rnds, [42, 42, 42])
+			}
+			do {
+				let id = UUID()
+				let item = ReturningItem(id: id, rnd: 42)
+				let id0 = try table.insert(item, returning: \.id)
+				XCTAssertEqual(id0, id)
+			}
 		} catch {
 			XCTFail("\(error)")
 		}
@@ -1296,7 +1309,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testURL", testURL),
 		("testManyJoins", testManyJoins),
 		("testDateFormat", testDateFormat),
-		("testAssets", testAssets)
+		("testAssets", testAssets),
+		("testReturning", testReturning)
 	]
 }
 

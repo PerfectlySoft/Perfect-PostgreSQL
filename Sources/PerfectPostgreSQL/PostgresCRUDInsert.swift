@@ -8,6 +8,8 @@
 import Foundation
 import PerfectCRUD
 
+// Promises that instances.count == returnValue.count on exit
+// otherwise it will throw
 private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Decodable>(fromTable ft: FromTableType,
 								   instances: [OverAllForm],
 								   returning: KeyPath<OverAllForm, R>,
@@ -63,7 +65,7 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 		RETURNING \(nameQ).\(try delegate.quote(identifier: returningName))
 	"""
 	CRUDLogging.log(.query, sqlStr)
-	let exeDelegate = PostgresExeDelegate(connection: databaseConfiguration.connection, sql: sqlStr)//try databaseConfiguration.sqlExeDelegate(forSQL: sqlStr)
+	let exeDelegate = PostgresExeDelegate(connection: databaseConfiguration.connection, sql: sqlStr)
 	try exeDelegate.bind(delegate.bindings)
 	guard try exeDelegate.hasNext(), let next: KeyedDecodingContainer<ColumnKey> = try exeDelegate.next() else {
 		throw CRUDSQLGenError("Did not get return value from statement \(sqlStr).")
@@ -88,27 +90,27 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 }
 
 public extension Table where C.Configuration == PostgresDatabaseConfiguration {
-	func insert<R: Decodable>(_ instance: Form, returning: KeyPath<OverAllForm, R>) throws -> R? {
-		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [], excludeKeys: []).first
+	func insert<R: Decodable>(_ instance: Form, returning: KeyPath<OverAllForm, R>) throws -> R {
+		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [], excludeKeys: []).first!
 	}
 	func insert<R: Decodable>(_ instance: Form, returning: KeyPath<OverAllForm, R>,
-							  setKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> R? {
-		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [setKeys] + rest, excludeKeys: []).first
+							  setKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> R {
+		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [setKeys] + rest, excludeKeys: []).first!
 	}
 	func insert<R: Decodable>(_ instance: Form, returning: KeyPath<OverAllForm, R>,
-							  ignoreKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> R? {
-		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [], excludeKeys: [ignoreKeys] + rest).first
+							  ignoreKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> R {
+		return try _insert(fromTable: self, instances: [instance], returning: returning, includeKeys: [], excludeKeys: [ignoreKeys] + rest).first!
 	}
 	
-	func insert<R: Decodable>(_ instances: [Form], returning: KeyPath<OverAllForm, R>) throws -> [R]? {
+	func insert<R: Decodable>(_ instances: [Form], returning: KeyPath<OverAllForm, R>) throws -> [R] {
 		return try _insert(fromTable: self, instances: instances, returning: returning, includeKeys: [], excludeKeys: [])
 	}
 	func insert<R: Decodable>(_ instances: [Form], returning: KeyPath<OverAllForm, R>,
-							  setKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> [R]? {
+							  setKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> [R] {
 		return try _insert(fromTable: self, instances: instances, returning: returning, includeKeys: [setKeys] + rest, excludeKeys: [])
 	}
 	func insert<R: Decodable>(_ instances: [Form], returning: KeyPath<OverAllForm, R>,
-							  ignoreKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> [R]? {
+							  ignoreKeys: PartialKeyPath<OverAllForm>, _ rest: PartialKeyPath<OverAllForm>...) throws -> [R] {
 		return try _insert(fromTable: self, instances: instances, returning: returning, includeKeys: [], excludeKeys: [ignoreKeys] + rest)
 	}
 }
