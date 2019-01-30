@@ -26,7 +26,7 @@ let package = Package(
 		.library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"])
 	],
 	dependencies: [
-		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "1.1.4"),
+		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "1.2.1"),
 		.package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", from: "2.0.0"),
 		],
 	targets: [
@@ -41,7 +41,7 @@ let package = Package(
 		.library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"])
 	],
 	dependencies: [
-		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "1.1.4"),
+		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "1.2.1"),
 		.package(url: "https://github.com/PerfectlySoft/Perfect-libpq-linux.git", from: "2.0.0"),
 		],
 	targets: [
