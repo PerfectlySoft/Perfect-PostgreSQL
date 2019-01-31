@@ -1318,6 +1318,32 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 	}
 	
+	func testEmptyInsert() {
+		do {
+			let db = try getTestDB()
+			struct ReturningItem: Codable, Equatable {
+				let id: Int?
+				var def: Int?
+				init(id: Int, def: Int? = nil) {
+					self.id = id
+					self.def = def
+				}
+			}
+			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
+			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id SERIAL PRIMARY KEY, def INT DEFAULT 42)")
+			let table = db.table(ReturningItem.self)
+			
+			try table
+				.insert(ReturningItem(id: 0, def: 0),
+						ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+			_ = try table
+				.returning(\.def, insert: ReturningItem(id: 0, def: 0),
+						ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+		} catch {
+			XCTFail("\(error)")
+		}
+	}
+	
 	static var allTests = [
 		("testCreate1", testCreate1),
 		("testCreate2", testCreate2),
@@ -1351,7 +1377,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 		("testDateFormat", testDateFormat),
 		("testAssets", testAssets),
 		("testReturningInsert", testReturningInsert),
-		("testReturningUpdate", testReturningUpdate)
+		("testReturningUpdate", testReturningUpdate),
+		("testEmptyInsert", testEmptyInsert)
 	]
 }
 

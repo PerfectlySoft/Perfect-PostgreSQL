@@ -134,11 +134,16 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 	let bindIdentifiers = bindings.map { $0.identifier }
 	
 	let nameQ = try delegate.quote(identifier: "\(OAF.CRUDTableName)")
-	let sqlStr = """
-	INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
+	let sqlStr: String
+	if columnNames.isEmpty {
+		sqlStr = "INSERT INTO \(nameQ) DEFAULT VALUES RETURNING \(nameQ).\(try delegate.quote(identifier: returningName))"
+	} else {
+		sqlStr = """
+		INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
 		VALUES (\(bindIdentifiers.joined(separator: ", ")))
 		RETURNING \(nameQ).\(try delegate.quote(identifier: returningName))
-	"""
+		"""
+	}
 	CRUDLogging.log(.query, sqlStr)
 	let exeDelegate = PostgresExeDelegate(connection: databaseConfiguration.connection, sql: sqlStr)
 	try exeDelegate.bind(delegate.bindings)
