@@ -41,8 +41,8 @@ public final class PGResult {
 		case unknown
 	}
 	
-	var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
-	var borrowed = false
+	private var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
+	private var borrowed = false
 	
 	init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
 		self.res = res
@@ -53,6 +53,10 @@ public final class PGResult {
 		close()
 	}
 	
+	func isValid() -> Bool {
+		return res != nil
+	}
+
 	/// close result object
 	public func close() {
 		clear()
