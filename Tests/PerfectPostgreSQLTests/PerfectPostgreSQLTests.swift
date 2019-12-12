@@ -91,6 +91,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 	
 	override func setUp() {
 		super.setUp()
+		CRUDClearTableStructureCache()
 	}
 	override func tearDown() {
 		CRUDLogging.flush()

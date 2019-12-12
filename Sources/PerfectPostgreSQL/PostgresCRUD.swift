@@ -151,7 +151,7 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 			return ret as! T
 		case .data:
 			let bytes: [UInt8] = results.getFieldBlobUInt8(tupleIndex: tupleIndex, fieldIndex: index) ?? []
-			return Data(bytes: bytes) as! T
+			return Data(bytes) as! T
 		case .uuid:
 			let str = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: index) ?? ""
 			guard let ret = UUID(uuidString: str) else {
@@ -188,6 +188,9 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 				throw CRUDDecoderError("Invalid data for type: \(type) for key: \(key.stringValue)")
 			}
 			return obj
+		case .wrapped:
+			let decoder = CRUDColumnValueDecoder(source: KeyedDecodingContainer(self), key: key)
+			return try T(from: decoder)
 		}
 	}
 	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
@@ -292,9 +295,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			return nil
 		}
 	}
-	func getColumnDefinition(_ column: TableStructure.Column) throws -> String {
-		let name = column.name
-		let type = column.type
+	private func getTypeName(_ type: Any.Type) throws -> String {
 		let typeName: String
 		switch type {
 		case is Int.Type:
@@ -344,8 +345,19 @@ class PostgresGenDelegate: SQLGenDelegate {
 				typeName = "text"
 			case .codable:
 				typeName = "jsonb"
+			case .wrapped:
+				guard let w = type as? WrappedCodableProvider.Type else {
+					throw PostgresCRUDError("Unsupported SQL column type \(type)")
+				}
+				return try getTypeName(w)
 			}
 		}
+		return typeName
+	}
+	func getColumnDefinition(_ column: TableStructure.Column) throws -> String {
+		let name = column.name
+		let type = column.type
+		let typeName = try getTypeName(type)
 		let addendum: String
 		if column.properties.contains(.primaryKey) {
 			addendum = " PRIMARY KEY"
