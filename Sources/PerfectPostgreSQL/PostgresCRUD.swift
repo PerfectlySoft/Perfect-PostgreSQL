@@ -151,7 +151,7 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 			return ret as! T
 		case .data:
 			let bytes: [UInt8] = results.getFieldBlobUInt8(tupleIndex: tupleIndex, fieldIndex: index) ?? []
-			return Data(bytes: bytes) as! T
+			return Data(bytes) as! T
 		case .uuid:
 			let str = results.getFieldString(tupleIndex: tupleIndex, fieldIndex: index) ?? ""
 			guard let ret = UUID(uuidString: str) else {
@@ -188,6 +188,9 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 				throw CRUDDecoderError("Invalid data for type: \(type) for key: \(key.stringValue)")
 			}
 			return obj
+		case .wrapped:
+			let decoder = CRUDColumnValueDecoder(source: KeyedDecodingContainer(self), key: key)
+			return try T(from: decoder)
 		}
 	}
 	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
@@ -213,6 +216,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 	let connection: PGConnection
 	var parentTableStack: [TableStructure] = []
 	var bindings: Bindings = []
+	
 	init(connection c: PGConnection) {
 		connection = c
 	}
@@ -229,14 +233,9 @@ class PostgresGenDelegate: SQLGenDelegate {
 		defer {
 			parentTableStack.removeLast()
 		}
-		var sub: [String]
-		if !policy.contains(.shallow) {
-			sub = try forTable.subTables.flatMap { try getCreateTableSQL(forTable: $0, policy: policy) }
-		} else {
-			sub = []
-		}
+		var sub: [String] = []
 		if policy.contains(.dropTable) {
-			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName))"]
+			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName)) CASCADE"]
 		}
 		if !policy.contains(.dropTable),
 			policy.contains(.reconcileTable),
@@ -267,6 +266,12 @@ class PostgresGenDelegate: SQLGenDelegate {
 				)
 				"""]
 		}
+		if !policy.contains(.shallow) {
+			sub += try forTable.subTables.flatMap {
+				try getCreateTableSQL(forTable: $0, policy: policy)
+			}
+		}
+		
 		return sub
 	}
 	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
@@ -292,9 +297,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 			return nil
 		}
 	}
-	func getColumnDefinition(_ column: TableStructure.Column) throws -> String {
-		let name = column.name
-		let type = column.type
+	private func getTypeName(_ type: Any.Type) throws -> String {
 		let typeName: String
 		switch type {
 		case is Int.Type:
@@ -344,15 +347,46 @@ class PostgresGenDelegate: SQLGenDelegate {
 				typeName = "text"
 			case .codable:
 				typeName = "jsonb"
+			case .wrapped:
+				guard let w = type as? WrappedCodableProvider.Type else {
+					throw PostgresCRUDError("Unsupported SQL column type \(type)")
+				}
+				return try getTypeName(w)
 			}
 		}
-		let addendum: String
-		if column.properties.contains(.primaryKey) {
-			addendum = " PRIMARY KEY"
-		} else if !column.optional {
-			addendum = " NOT NULL"
-		} else {
-			addendum = ""
+		return typeName
+	}
+	func getColumnDefinition(_ column: TableStructure.Column) throws -> String {
+		let name = column.name
+		let type = column.type
+		let typeName = try getTypeName(type)
+		var addendum = ""
+		if !column.properties.contains(.primaryKey) && !column.optional {
+			addendum += " NOT NULL"
+		}
+		for prop in column.properties {
+			switch prop {
+			case .primaryKey:
+				addendum += " PRIMARY KEY"
+			case .foreignKey(let table, let column, let onDelete, let onUpdate):
+				addendum += " REFERENCES \(try quote(identifier: table))(\(try quote(identifier: column)))"
+				let scenarios = [(" ON DELETE ", onDelete), (" ON UPDATE ", onUpdate)]
+				for (scenario, action) in scenarios {
+					addendum += scenario
+					switch action {
+					case .ignore:
+						addendum += "NO ACTION"
+					case .restrict:
+						addendum += "RESTRICT"
+					case .setNull:
+						addendum += "SET NULL"
+					case .setDefault:
+						addendum += "SET DEFAULT"
+					case .cascade:
+						addendum += "CASCADE"
+					}
+				}
+			}
 		}
 		return "\(try quote(identifier: name)) \(typeName)\(addendum)"
 	}
