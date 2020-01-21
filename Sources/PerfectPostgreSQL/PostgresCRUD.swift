@@ -216,6 +216,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 	let connection: PGConnection
 	var parentTableStack: [TableStructure] = []
 	var bindings: Bindings = []
+	
 	init(connection c: PGConnection) {
 		connection = c
 	}
@@ -232,14 +233,9 @@ class PostgresGenDelegate: SQLGenDelegate {
 		defer {
 			parentTableStack.removeLast()
 		}
-		var sub: [String]
-		if !policy.contains(.shallow) {
-			sub = try forTable.subTables.flatMap { try getCreateTableSQL(forTable: $0, policy: policy) }
-		} else {
-			sub = []
-		}
+		var sub: [String] = []
 		if policy.contains(.dropTable) {
-			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName))"]
+			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName)) CASCADE"]
 		}
 		if !policy.contains(.dropTable),
 			policy.contains(.reconcileTable),
@@ -270,6 +266,12 @@ class PostgresGenDelegate: SQLGenDelegate {
 				)
 				"""]
 		}
+		if !policy.contains(.shallow) {
+			sub += try forTable.subTables.flatMap {
+				try getCreateTableSQL(forTable: $0, policy: policy)
+			}
+		}
+		
 		return sub
 	}
 	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
@@ -358,13 +360,33 @@ class PostgresGenDelegate: SQLGenDelegate {
 		let name = column.name
 		let type = column.type
 		let typeName = try getTypeName(type)
-		let addendum: String
-		if column.properties.contains(.primaryKey) {
-			addendum = " PRIMARY KEY"
-		} else if !column.optional {
-			addendum = " NOT NULL"
-		} else {
-			addendum = ""
+		var addendum = ""
+		if !column.properties.contains(.primaryKey) && !column.optional {
+			addendum += " NOT NULL"
+		}
+		for prop in column.properties {
+			switch prop {
+			case .primaryKey:
+				addendum += " PRIMARY KEY"
+			case .foreignKey(let table, let column, let onDelete, let onUpdate):
+				addendum += " REFERENCES \(try quote(identifier: table))(\(try quote(identifier: column)))"
+				let scenarios = [(" ON DELETE ", onDelete), (" ON UPDATE ", onUpdate)]
+				for (scenario, action) in scenarios {
+					addendum += scenario
+					switch action {
+					case .ignore:
+						addendum += "NO ACTION"
+					case .restrict:
+						addendum += "RESTRICT"
+					case .setNull:
+						addendum += "SET NULL"
+					case .setDefault:
+						addendum += "SET DEFAULT"
+					case .cascade:
+						addendum += "CASCADE"
+					}
+				}
+			}
 		}
 		return "\(try quote(identifier: name)) \(typeName)\(addendum)"
 	}

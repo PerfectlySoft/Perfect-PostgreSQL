@@ -43,7 +43,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 			case id, name, integer = "int", double = "doub", blob, subTables
 		}
 		static let tableName = "test_table_1"
-		let id: Int
+		
+		@PrimaryKey var id: Int
 		let name: String?
 		let integer: Int?
 		let double: Double?
@@ -65,8 +66,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 	}
 	
 	struct TestTable2: Codable {
-		let id: UUID
-		let parentId: Int
+		@PrimaryKey var id: UUID
+		@ForeignKey(TestTable1.self, onDelete: cascade, onUpdate: cascade) var parentId: Int
 		let date: Date
 		let name: String?
 		let int: Int?
@@ -80,12 +81,12 @@ class PerfectPostgreSQLTests: XCTestCase {
 			 doub: Double? = nil,
 			 blob: [UInt8]? = nil) {
 			self.id = id
-			self.parentId = parentId
 			self.date = date
 			self.name = name
 			self.int = int
 			self.doub = doub
 			self.blob = blob
+			self.parentId = parentId
 		}
 	}
 	
@@ -107,13 +108,13 @@ class PerfectPostgreSQLTests: XCTestCase {
 				try t2.index(\.parentId)
 			}
 			let t1 = db.table(TestTable1.self)
+			let t2 = db.table(TestTable2.self)
 			let subId = UUID()
 			try db.transaction {
 				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
 				try t1.insert(newOne)
 				let newSub1 = TestTable2(id: subId, parentId: 2000, date: Date(), name: "Me")
 				let newSub2 = TestTable2(id: UUID(), parentId: 2000, date: Date(), name: "Not Me")
-				let t2 = db.table(TestTable2.self)
 				try t2.insert([newSub1, newSub2])
 			}
 			let j21 = try t1.join(\.subTables, on: \.id, equals: \.parentId)
