@@ -75,7 +75,7 @@ sudo apt-get install libpq-dev
 Add this project as a dependency in your Package.swift file.
 
 ```
-.Package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", majorVersion: 3)
+.package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", from: "3.0.0")
 ```
 
 ## Documentation
