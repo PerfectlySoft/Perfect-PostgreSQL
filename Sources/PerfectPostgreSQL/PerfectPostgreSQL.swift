@@ -329,6 +329,20 @@ public final class PGResult {
 	}
 }
 
+fileprivate extension Array where Element == UInt8 {
+	func getCCPointer() -> UnsafePointer<Int8>? {
+		return self.withUnsafeBufferPointer { buffered -> UnsafePointer<Int8>? in
+			return buffered.baseAddress?.withMemoryRebound(to: Int8.self, capacity: count) { $0 }
+		}
+	}
+}
+
+fileprivate extension Array where Element == Int8 {
+	func getPointer() -> UnsafePointer<Int8>? {
+		return self.withUnsafeBufferPointer { $0.baseAddress }
+	}
+}
+
 /// connection management class
 public final class PGConnection {
 	
@@ -421,19 +435,19 @@ public final class PGConnection {
 				var aa = [UInt8](s.utf8)
 				aa.append(0)
 				temps.append(aa)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				values[idx] = temps.last!.getCCPointer()!
 				types[idx] = 0
 				lengths[idx] = 0
 				formats[idx] = 0
 			case let a as [UInt8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = a.getCCPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
 			case let a as [Int8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = a.getPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
@@ -441,7 +455,7 @@ public final class PGConnection {
 				let a = d.map { $0 }
 				let length = Int32(a.count)
 				temps.append(a)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				values[idx] = temps.last!.getCCPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
@@ -451,7 +465,7 @@ public final class PGConnection {
 					var aa = [UInt8](asStrings.last!.utf8)
 					aa.append(0)
 					temps.append(aa)
-					values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+					values[idx] = temps.last!.getCCPointer()!
 				} else {
 					values[idx] = nil
 				}//end if
