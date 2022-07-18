@@ -46,7 +46,7 @@ private func _update<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 		}
 		return n
 	}
-	
+
 	let encoder = try CRUDBindingsEncoder(delegate: delegate)
 	try instance.encode(to: encoder)
 	state.bindingsEncoder = encoder
@@ -106,7 +106,7 @@ private func _update<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 		}
 		return n
 	}
-	
+
 	let encoder = try CRUDBindingsEncoder(delegate: delegate)
 	try instance.encode(to: encoder)
 	state.bindingsEncoder = encoder
