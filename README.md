@@ -81,3 +81,29 @@ Add this project as a dependency in your Package.swift file.
 ## Documentation
 
 For more information, please visit [perfect.org](http://www.perfect.org/docs/PostgreSQL.html).
+
+## Update for Swift 5.4 + Perfect Classic
+
+``` swift
+// swift-tools-version: 5.4
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "DemoApp",
+    dependencies: [
+        .package(url: "https://github.com/RockfordWei/Perfect.git", from: "5.6.13"),
+        .package(url: "https://github.com/RockfordWei/Perfect-PostgreSQL.git", from: "5.6.0"),
+    ],
+    targets: [
+        .executableTarget(
+            name: "DemoApp",
+            dependencies: [
+                .product(name: "PerfectLib", package: "Perfect"),
+                .product(name: "PerfectPostgreSQL", package: "Perfect-PostgreSQL")
+            ]),
+    ]
+)
+
+```

@@ -5,7 +5,7 @@
 //  Created by Kyle Jessup on 2015-07-29.
 //	Copyright (C) 2015 PerfectlySoft, Inc.
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 // This source file is part of the Perfect.org open source project
 //
@@ -14,21 +14,21 @@
 //
 // See http://perfect.org/licensing.html for license information
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 
 import Foundation
 import libpq
 
 /// This enum type indicates an exception when dealing with a PostgreSQL database
-public enum PostgreSQLError : Error {
+public enum PostgreSQLError: Error {
 	/// Error with detail message.
 	case error(String)
 }
 
 /// result object
 public final class PGResult {
-	
+
 	/// Result Status enum
 	public enum StatusType {
 		case emptyQuery
@@ -40,19 +40,19 @@ public final class PGResult {
 		case singleTuple
 		case unknown
 	}
-	
+
 	private var res: OpaquePointer? = OpaquePointer(bitPattern: 0)
 	private var borrowed = false
-	
+
 	init(_ res: OpaquePointer?, isBorrowed: Bool = false) {
 		self.res = res
 		self.borrowed = isBorrowed
 	}
-	
+
 	deinit {
 		close()
 	}
-	
+
 	func isValid() -> Bool {
 		return res != nil
 	}
@@ -61,7 +61,7 @@ public final class PGResult {
 	public func close() {
 		clear()
 	}
-	
+
 	/// clear and disconnect result object
 	public func clear() {
 		if let res = self.res {
@@ -71,7 +71,7 @@ public final class PGResult {
 			self.res = OpaquePointer(bitPattern: 0)
 		}
 	}
-	
+
 	/// Result Status number as Int
 	public func statusInt() -> Int {
 		guard let res = self.res else {
@@ -80,14 +80,14 @@ public final class PGResult {
 		let s = PQresultStatus(res)
 		return Int(s.rawValue)
 	}
-	
+
 	/// Result Status Value
 	public func status() -> StatusType {
 		guard let res = self.res else {
 			return .unknown
 		}
 		let s = PQresultStatus(res)
-		switch(s.rawValue) {
+		switch s.rawValue {
 		case PGRES_EMPTY_QUERY.rawValue:
 			return .emptyQuery
 		case PGRES_COMMAND_OK.rawValue:
@@ -107,7 +107,7 @@ public final class PGResult {
 		}
 		return .unknown
 	}
-	
+
 	/// Result Status Message
 	public func errorMessage() -> String {
 		guard let res = self.res else {
@@ -115,7 +115,7 @@ public final class PGResult {
 		}
 		return String(validatingUTF8: PQresultErrorMessage(res)) ?? ""
 	}
-	
+
 	/// Result field count
 	public func numFields() -> Int {
 		guard let res = self.res else {
@@ -123,7 +123,7 @@ public final class PGResult {
 		}
 		return Int(PQnfields(res))
 	}
-	
+
 	/// Field name for index value
 	public func fieldName(index: Int) -> String? {
 		guard let res = self.res,
@@ -133,7 +133,7 @@ public final class PGResult {
 		}
 		return ret
 	}
-	
+
 	/// Field type for index value
 	public func fieldType(index: Int) -> Oid? {
 		guard let res = self.res else {
@@ -142,7 +142,7 @@ public final class PGResult {
 		let fn = PQftype(res, Int32(index))
 		return fn
 	}
-	
+
 	/// number of rows (Tuples) returned in result
 	public func numTuples() -> Int {
 		guard let res = self.res else {
@@ -150,12 +150,12 @@ public final class PGResult {
 		}
 		return Int(PQntuples(res))
 	}
-	
+
 	/// test null field at row index for field index
 	public func fieldIsNull(tupleIndex: Int, fieldIndex: Int) -> Bool {
 		return 1 == PQgetisnull(res, Int32(tupleIndex), Int32(fieldIndex))
 	}
-	
+
 	/// return value for String field type with row and field indexes provided
 	public func getFieldString(tupleIndex: Int, fieldIndex: Int) -> String? {
 		guard !fieldIsNull(tupleIndex: tupleIndex, fieldIndex: fieldIndex),
@@ -164,7 +164,7 @@ public final class PGResult {
 		}
 		return String(validatingUTF8: v)
 	}
-	
+
 	/// return value for Bool field type with row and field indexes provided
 	public func getFieldBool(tupleIndex: Int, fieldIndex: Int) -> Bool? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -172,7 +172,7 @@ public final class PGResult {
 		}
 		return s == "t"
 	}
-	
+
 	/// return value for Int field type with row and field indexes provided
 	public func getFieldInt(tupleIndex: Int, fieldIndex: Int) -> Int? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -180,7 +180,7 @@ public final class PGResult {
 		}
 		return Int(s)
 	}
-	
+
 	/// return value for Int8 field type with row and field indexes provided
 	public func getFieldInt8(tupleIndex: Int, fieldIndex: Int) -> Int8? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -188,7 +188,7 @@ public final class PGResult {
 		}
 		return Int8(s)
 	}
-	
+
 	/// return value for Int16 field type with row and field indexes provided
 	public func getFieldInt16(tupleIndex: Int, fieldIndex: Int) -> Int16? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -196,7 +196,7 @@ public final class PGResult {
 		}
 		return Int16(s)
 	}
-	
+
 	/// return value for Int32 field type with row and field indexes provided
 	public func getFieldInt32(tupleIndex: Int, fieldIndex: Int) -> Int32? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -204,7 +204,7 @@ public final class PGResult {
 		}
 		return Int32(s)
 	}
-	
+
 	/// return value for Int64 field type with row and field indexes provided
 	public func getFieldInt64(tupleIndex: Int, fieldIndex: Int) -> Int64? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -212,7 +212,7 @@ public final class PGResult {
 		}
 		return Int64(s)
 	}
-	
+
 	/// return value for Int field type with row and field indexes provided
 	public func getFieldUInt(tupleIndex: Int, fieldIndex: Int) -> UInt? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -220,7 +220,7 @@ public final class PGResult {
 		}
 		return UInt(s)
 	}
-	
+
 	/// return value for Int8 field type with row and field indexes provided
 	public func getFieldUInt8(tupleIndex: Int, fieldIndex: Int) -> UInt8? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -228,7 +228,7 @@ public final class PGResult {
 		}
 		return UInt8(s)
 	}
-	
+
 	/// return value for Int16 field type with row and field indexes provided
 	public func getFieldUInt16(tupleIndex: Int, fieldIndex: Int) -> UInt16? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -236,7 +236,7 @@ public final class PGResult {
 		}
 		return UInt16(s)
 	}
-	
+
 	/// return value for Int32 field type with row and field indexes provided
 	public func getFieldUInt32(tupleIndex: Int, fieldIndex: Int) -> UInt32? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -244,7 +244,7 @@ public final class PGResult {
 		}
 		return UInt32(s)
 	}
-	
+
 	/// return value for Int64 field type with row and field indexes provided
 	public func getFieldUInt64(tupleIndex: Int, fieldIndex: Int) -> UInt64? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -252,7 +252,7 @@ public final class PGResult {
 		}
 		return UInt64(s)
 	}
-	
+
 	/// return value for Double field type with row and field indexes provided
 	public func getFieldDouble(tupleIndex: Int, fieldIndex: Int) -> Double? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -260,7 +260,7 @@ public final class PGResult {
 		}
 		return Double(s)
 	}
-	
+
 	/// return value for Float field type with row and field indexes provided
 	public func getFieldFloat(tupleIndex: Int, fieldIndex: Int) -> Float? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -268,7 +268,7 @@ public final class PGResult {
 		}
 		return Float(s)
 	}
-	
+
 	/// return value for Blob field type with row and field indexes provided
 	public func getFieldBlob(tupleIndex: Int, fieldIndex: Int) -> [Int8]? {
 		guard let s = getFieldString(tupleIndex: tupleIndex, fieldIndex: fieldIndex) else {
@@ -292,18 +292,18 @@ public final class PGResult {
 		}
 		return ret
 	}
-	
+
 	private func byteFromHexDigits(one c1v: Int8, two c2v: Int8) -> Int8? {
-		
+
 		let capA: Int8 = 65
 		let capF: Int8 = 70
 		let lowA: Int8 = 97
 		let lowF: Int8 = 102
 		let zero: Int8 = 48
 		let nine: Int8 = 57
-		
+
 		var newChar = Int8(0)
-		
+
 		if c1v >= capA && c1v <= capF {
 			newChar = c1v - capA + 10
 		} else if c1v >= lowA && c1v <= lowF {
@@ -313,9 +313,9 @@ public final class PGResult {
 		} else {
 			return nil
 		}
-		
+
 		newChar = newChar &* 16
-		
+
 		if c2v >= capA && c2v <= capF {
 			newChar += c2v - capA + 10
 		} else if c2v >= lowA && c2v <= lowF {
@@ -329,39 +329,53 @@ public final class PGResult {
 	}
 }
 
+fileprivate extension Array where Element == UInt8 {
+	func getCCPointer() -> UnsafePointer<Int8>? {
+		return self.withUnsafeBufferPointer { buffered -> UnsafePointer<Int8>? in
+			return buffered.baseAddress?.withMemoryRebound(to: Int8.self, capacity: count) { $0 }
+		}
+	}
+}
+
+fileprivate extension Array where Element == Int8 {
+	func getPointer() -> UnsafePointer<Int8>? {
+		return self.withUnsafeBufferPointer { $0.baseAddress }
+	}
+}
+
 /// connection management class
 public final class PGConnection {
-	
+
 	/// Connection Status enum
 	public enum StatusType {
 		case ok
 		case bad
 	}
-	
+
 	var conn = OpaquePointer(bitPattern: 0)
 	var connectInfo: String = ""
-	
+
 	/// empty init
 	public init() {
-		
+
 	}
-	
+
 	deinit {
 		close()
 	}
-	
+
 	/// Makes a new connection to the database server.
 	public func connectdb(_ info: String) -> StatusType {
 		conn = PQconnectdb(info)
 		connectInfo = info
 		return status()
 	}
-	
+
 	/// Close db connection
 	public func close() {
 		finish()
 	}
-	
+
 	/// Closes the connection to the server. Also frees memory used by the PGconn object.
 	public func finish() {
 		if conn != nil {
@@ -369,28 +383,28 @@ public final class PGConnection {
 			conn = OpaquePointer(bitPattern: 0)
 		}
 	}
-	
+
 	/// Returns the status of the connection.
 	public func status() -> StatusType {
 		let status = PQstatus(conn)
 		return status == CONNECTION_OK ? .ok : .bad
 	}
-	
+
 	/// Returns the error message most recently generated by an operation on the connection.
 	public func errorMessage() -> String {
 		return String(validatingUTF8: PQerrorMessage(conn)) ?? ""
 	}
-	
+
 	/// Submits a command to the server and waits for the result.
 	public func exec(statement: String) -> PGResult {
 		return PGResult(PQexec(conn, statement))
 	}
-	
+
 	/// Sends data to the server during COPY_IN state.
 	public func putCopyData(data: String) {
 		PQputCopyData(self.conn, data, Int32(data.count))
 	}
-	
+
 	/// Sends end-of-data indication to the server during COPY_IN state.
 	/// If withError is set, the copy is forced to fail with the error description supplied.
 	public func putCopyEnd(withError: String? = nil) -> PGResult {
@@ -398,7 +412,7 @@ public final class PGConnection {
 		let result = PGResult(PQgetResult(self.conn))
 		return result
 	}
-	
+
 	// !FIX! does not handle binary data
 	/// Submits a command to the server and waits for the result, with the ability to pass parameters separately from the SQL command text.
 	public func exec(statement: String, params: [Any?]) -> PGResult {
@@ -421,19 +435,19 @@ public final class PGConnection {
 				var aa = [UInt8](s.utf8)
 				aa.append(0)
 				temps.append(aa)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				values[idx] = temps.last!.getCCPointer()!
 				types[idx] = 0
 				lengths[idx] = 0
 				formats[idx] = 0
 			case let a as [UInt8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = a.getCCPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
 			case let a as [Int8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = a.getPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
@@ -441,7 +455,7 @@ public final class PGConnection {
 				let a = d.map { $0 }
 				let length = Int32(a.count)
 				temps.append(a)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				values[idx] = temps.last!.getCCPointer()!
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
@@ -451,10 +465,10 @@ public final class PGConnection {
 					var aa = [UInt8](asStrings.last!.utf8)
 					aa.append(0)
 					temps.append(aa)
-					values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+					values[idx] = temps.last!.getCCPointer()!
 				} else {
 					values[idx] = nil
-				}//end if
+				} // end if
 				types[idx] = 0
 				lengths[idx] = 0
 				formats[idx] = 0
@@ -463,7 +477,7 @@ public final class PGConnection {
 		let r = PQexecParams(conn, statement, Int32(count), nil, values, lengths, formats, Int32(0))
 		return PGResult(r)
 	}
-	
+
 	/// Assert that the connection status is OK
 	///
 	/// - throws: If the connection status is bad
@@ -476,10 +490,10 @@ public final class PGConnection {
 			throw PostgreSQLError.error("Connection status is bad")
 		}
 	}
-	
+
 	/// The binding values
 	public typealias ExecuteParameterArray = [Any?]
-	
+
 	/// Execute the given statement.
 	///
 	/// - parameter statement: String statement to be executed
@@ -502,7 +516,7 @@ public final class PGConnection {
 			throw PostgreSQLError.error("Failed to execute statement. status: \(status)")
 		}
 	}
-	
+
 	/// Executes a BEGIN, calls the provided closure and executes a ROLLBACK if an exception occurs or a COMMIT if no exception occurs.
 	///
 	/// - parameter closure: Block to be executed inside transaction
@@ -520,19 +534,19 @@ public final class PGConnection {
 			throw error
 		}
 	}
-	
+
 	/// Handler for receiving a PGResult
 	public typealias ReceiverProc = (PGResult) -> Void
-	
+
 	/// Handler for processing a text message
 	public typealias ProcessorProc = (String) -> Void
-	
+
 	/// internal callback for notice receiving
 	internal var receiver: ReceiverProc = { _ in }
-	
+
 	/// internal callback for notice processing
 	internal var processor: ProcessorProc = { _ in }
-	
+
 	/// Set a new notice receiver
 	/// - parameter handler: a closure to handle the incoming notice
 	/// - returns: a C convention function pointer; would be nil if failed to set.
@@ -551,7 +565,7 @@ public final class PGConnection {
 			this.receiver(pgresult)
 		}, me)
 	}
-	
+
 	/// Set a new notice processor
 	/// - parameter handler: a closure to handle the incoming notice
 	/// - returns: a C convention function pointer; would be nil if failed to set.

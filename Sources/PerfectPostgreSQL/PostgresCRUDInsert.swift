@@ -46,14 +46,14 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 		}
 		return n
 	}
-	
+
 	let encoder = try CRUDBindingsEncoder(delegate: delegate)
 	try instances[0].encode(to: encoder)
-	
+
 	let bindings = try encoder.completedBindings(allKeys: includeNames, ignoreKeys: Set(excludeNames))
 	let columnNames = try bindings.map { try delegate.quote(identifier: $0.column) }
 	let bindIdentifiers = bindings.map { $0.identifier }
-	
+
 	let nameQ = try delegate.quote(identifier: "\(OAF.CRUDTableName)")
 	let sqlStr = """
 	INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
@@ -125,14 +125,14 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 		}
 		return n
 	}
-	
+
 	let encoder = try CRUDBindingsEncoder(delegate: delegate)
 	try instances[0].encode(to: encoder)
-	
+
 	let bindings = try encoder.completedBindings(allKeys: includeNames, ignoreKeys: Set(excludeNames))
 	let columnNames = try bindings.map { try delegate.quote(identifier: $0.column) }
 	let bindIdentifiers = bindings.map { $0.identifier }
-	
+
 	let nameQ = try delegate.quote(identifier: "\(OAF.CRUDTableName)")
 	let sqlStr: String
 	if columnNames.isEmpty {
@@ -152,7 +152,7 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 	}
 	var ret: [R] = []
 	let value = try next.decode(R.self, forKey: ColumnKey(stringValue: returningName)!)
-	ret.append(value)	
+	ret.append(value)
 	for instance in instances[1...] {
 		exeDelegate.resetResults()
 		let delegate = databaseConfiguration.sqlGenDelegate

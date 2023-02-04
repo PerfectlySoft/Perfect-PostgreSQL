@@ -1,0 +1,10 @@
+version: '3.3'
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_DB=testing123
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=secret

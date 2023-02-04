@@ -5,7 +5,7 @@
 //  Created by Kyle Jessup on 2015-10-19.
 //  Copyright © 2015 PerfectlySoft. All rights reserved.
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 // This source file is part of the Perfect.org open source project
 //
@@ -14,7 +14,7 @@
 //
 // See http://perfect.org/licensing.html for license information
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 
 import Foundation
@@ -24,8 +24,17 @@ import PerfectCRUD
 
 let testDBRowCount = 5
 let postgresTestDBName = "testing123"
-let postgresInitConnInfo = "host=localhost dbname=postgres"
-let postgresTestConnInfo = "host=localhost dbname=testing123"
+let postgresUsername = "root"
+let postgresPassword = "secret"
+#if os(macOS)
+let postgresHost = "127.0.0.1"
+let postgresInitConnInfo = "host=\(postgresHost) dbname=postgres user=\(postgresUsername) password=\(postgresPassword)"
+let postgresTestConnInfo = "host=\(postgresHost) dbname=\(postgresTestDBName) user=\(postgresUsername) password=\(postgresPassword)"
+#else
+let postgresHost = "host.docker.internal"
+let postgresInitConnInfo = "host=\(postgresHost) dbname=postgres user=\(postgresUsername) password=\(postgresPassword)"
+let postgresTestConnInfo = "host=\(postgresHost) dbname=\(postgresTestDBName) user=\(postgresUsername) password=\(postgresPassword)"
+#endif
 typealias DBConfiguration = PostgresDatabaseConfiguration
 func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
 	if reset {
@@ -43,7 +52,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			case id, name, integer = "int", double = "doub", blob, subTables
 		}
 		static let tableName = "test_table_1"
-		
+
 		@PrimaryKey var id: Int
 		let name: String?
 		let integer: Int?
@@ -64,7 +73,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			self.subTables = subTables
 		}
 	}
-	
+
 	struct TestTable2: Codable {
 		@PrimaryKey var id: UUID
 		@ForeignKey(TestTable1.self, onDelete: cascade, onUpdate: cascade) var parentId: Int
@@ -89,7 +98,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			self.parentId = parentId
 		}
 	}
-	
+
 	override func setUp() {
 		super.setUp()
 		CRUDClearTableStructureCache()
@@ -98,7 +107,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		CRUDLogging.flush()
 		super.tearDown()
 	}
-	
+
 	func testCreate1() {
 		do {
 			let db = try getDB()
@@ -152,7 +161,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testCreate2() {
 		do {
 			let db = try getTestDB()
@@ -187,7 +196,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testCreate3() {
 		struct FakeTestTable1: Codable, TableNameProvider {
 			enum CodingKeys: String, CodingKey {
@@ -204,7 +213,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		do {
 			let db = try getTestDB()
 			try db.create(TestTable1.self, policy: [.dropTable, .shallow])
-			
+
 			do {
 				let t1 = db.table(TestTable1.self)
 				let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
@@ -224,16 +233,14 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func getTestDB() throws -> Database<DBConfiguration> {
 		do {
 			let db = try getDB()
 			try db.create(TestTable1.self, policy: .dropTable)
-			try db.transaction {
-				() -> () in
+			try db.transaction { () -> () in
 				try db.table(TestTable1.self)
-					.insert((1...testDBRowCount).map {
-						num -> TestTable1 in
+					.insert((1...testDBRowCount).map { num -> TestTable1 in
 						let n = UInt8(num)
 						let blob: [UInt8]? = (num % 2 != 0) ? nil : [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
 						return TestTable1(id: num,
@@ -246,10 +253,8 @@ class PerfectPostgreSQLTests: XCTestCase {
 			try db.transaction {
 				() -> () in
 				try db.table(TestTable2.self)
-					.insert((1...testDBRowCount).flatMap {
-						parentId -> [TestTable2] in
-						return (1...testDBRowCount).map {
-							num -> TestTable2 in
+					.insert((1...testDBRowCount).flatMap { parentId -> [TestTable2] in
+						return (1...testDBRowCount).map { num -> TestTable2 in
 							let n = UInt8(num)
 							let blob: [UInt8]? = [UInt8](arrayLiteral: n+1, n+2, n+3, n+4, n+5)
 							return TestTable2(id: UUID(),
@@ -267,7 +272,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		}
 		return try getDB(reset: false)
 	}
-	
+
 	func testSelectAll() {
 		do {
 			let db = try getTestDB()
@@ -279,7 +284,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectIn() {
 		do {
 			let db = try getTestDB()
@@ -290,7 +295,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectLikeString() {
 		do {
 			let db = try getTestDB()
@@ -305,7 +310,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectJoin() {
 		do {
 			let db = try getTestDB()
@@ -314,7 +319,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				.join(\.subTables, on: \.id, equals: \.parentId)
 				.order(by: \.id)
 				.where(\TestTable2.name == "me")
-			
+
 			let j2c = try j2.count()
 			let j2a = try j2.select().map{$0}
 			let j2ac = j2a.count
@@ -327,7 +332,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testInsert1() {
 		do {
 			let db = try getTestDB()
@@ -342,7 +347,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testInsert2() {
 		do {
 			let db = try getTestDB()
@@ -358,7 +363,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testInsert3() {
 		do {
 			let db = try getTestDB()
@@ -376,7 +381,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testUpdate() {
 		do {
 			let db = try getTestDB()
@@ -400,7 +405,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testDelete() {
 		do {
 			let db = try getTestDB()
@@ -417,7 +422,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectLimit() {
 		do {
 			let db = try getTestDB()
@@ -473,7 +478,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectLimitWhere() {
 		do {
 			let db = try getTestDB()
@@ -484,7 +489,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectOrderLimitWhere() {
 		do {
 			let db = try getTestDB()
@@ -495,7 +500,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testSelectWhereNULL() {
 		do {
 			let db = try getTestDB()
@@ -509,7 +514,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	// this is the general-overview example used in the readme
 	func testPersonThing() {
 		do {
@@ -525,40 +530,40 @@ class PerfectPostgreSQLTests: XCTestCase {
 				let lastName: String
 				let phoneNumbers: [PhoneNumber]?
 			}
-			
+
 			// CRUD usage begins by creating a database connection.
 			// The inputs for connecting to a database will differ depending on your client library.
 			// Create a `Database` object by providing a configuration.
 			// All code would be identical regardless of the datasource type.
 			let db = try getTestDB()
-			
+
 			// Create the table if it hasn't been done already.
 			// Table creates are recursive by default, so "PhoneNumber" is also created here.
 			try db.create(Person.self, policy: .reconcileTable)
-			
+
 			// Get a reference to the tables we will be inserting data into.
 			let personTable = db.table(Person.self)
 			let numbersTable = db.table(PhoneNumber.self)
-			
+
 			// Add an index for personId, if it does not already exist.
 			try numbersTable.index(\.personId)
-			
+
 			// Insert some sample data.
 			do {
 				// Insert some sample data.
 				let owen = Person(id: UUID(), firstName: "Owen", lastName: "Lars", phoneNumbers: nil)
 				let beru = Person(id: UUID(), firstName: "Beru", lastName: "Lars", phoneNumbers: nil)
-				
+
 				// Insert the people
 				try personTable.insert([owen, beru])
-				
+
 				// Give them some phone numbers
 				try numbersTable.insert([
 					PhoneNumber(personId: owen.id, planetCode: 12, number: "555-555-1212"),
 					PhoneNumber(personId: owen.id, planetCode: 15, number: "555-555-2222"),
 					PhoneNumber(personId: beru.id, planetCode: 12, number: "555-555-1212")])
 			}
-			
+
 			// Perform a query.
 			// Let's find all people with the last name of Lars which have a phone number on planet 12.
 			let query = try personTable
@@ -567,7 +572,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				.order(descending: \.planetCode)
 				.where(\Person.lastName == "Lars" && \PhoneNumber.planetCode == 12)
 				.select()
-			
+
 			// Loop through the results and print the names.
 			for user in query {
 				// We joined PhoneNumbers, so we should have values here.
@@ -583,7 +588,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testStandardJoin() {
 		do {
 			let db = try getTestDB()
@@ -612,7 +617,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 					  on: \.id,
 					  equals: \.parentId)
 				.where(\Parent.id == 1)
-			
+
 			guard let parent = try join.first() else {
 				return XCTFail("Failed to find parent id: 1")
 			}
@@ -628,7 +633,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testJunctionJoin() {
 		do {
 			struct Student: Codable {
@@ -702,7 +707,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+	// swiftlint:disable type_name
 	func testSelfJoin() {
 		do {
 			struct Me: Codable {
@@ -740,7 +745,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+	// swiftlint:disable type_name
 	func testSelfJunctionJoin() {
 		do {
 			struct Me: Codable {
@@ -782,7 +787,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testCodableProperty() {
 		do {
 			struct Sub: Codable {
@@ -805,7 +810,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testBadDecoding() {
 		do {
 			struct Top: Codable, TableNameProvider {
@@ -824,7 +829,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("Should not have a valid object.")
 		} catch {}
 	}
-	
+
 	func testAllPrimTypes1() {
 		struct AllTypes: Codable {
 			let int: Int
@@ -849,7 +854,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			try db.create(AllTypes.self, policy: .dropTable)
 			let model = AllTypes(int: 1, uint: 2, int64: 3, uint64: 4, int32: 5, uint32: 6, int16: 7, uint16: 8, int8: 9, uint8: 10, double: 11, float: 12, string: "13", bytes: [1, 4], ubytes: [1, 4], b: true)
 			try db.table(AllTypes.self).insert(model)
-			
+
 			guard let f = try db.table(AllTypes.self).where(\AllTypes.int == 1).first() else {
 				return XCTFail("Nil result.")
 			}
@@ -877,7 +882,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			try db.create(AllTypes.self, policy: .dropTable)
 			let model = AllTypes(int: 1, uint: 2, int64: -3, uint64: 4, int32: nil, uint32: nil, int16: -7, uint16: 8, int8: nil, uint8: nil, double: -11, float: -12, string: "13", bytes: [1, 4], ubytes: nil, b: true)
 			try db.table(AllTypes.self).insert(model)
-			
+
 			guard let f = try db.table(AllTypes.self)
 				.where(\AllTypes.int == 1).first() else {
 					return XCTFail("Nil result.")
@@ -902,7 +907,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testAllPrimTypes2() {
 		struct AllTypes2: Codable {
 			func equals(rhs: AllTypes2) -> Bool {
@@ -953,7 +958,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			let ubytes: [UInt8]?
 			let b: Bool?
 		}
-		
+
 		do {
 			let db = try getTestDB()
 			try db.create(AllTypes2.self, policy: .dropTable)
@@ -1033,7 +1038,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testBespokeSQL() {
 		do {
 			let db = try getTestDB()
@@ -1049,7 +1054,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testModelClasses() {
 		class BaseClass: Codable {
 			let id: Int
@@ -1072,7 +1077,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				try container.encode(name, forKey: .name)
 			}
 		}
-		
+
 		class SubClass: BaseClass {
 			let another: String
 			private enum CodingKeys: String, CodingKey {
@@ -1093,14 +1098,14 @@ class PerfectPostgreSQLTests: XCTestCase {
 				try super.encode(to: encoder)
 			}
 		}
-		
+
 		do {
 			let db = try getTestDB()
 			try db.create(SubClass.self)
 			let table = db.table(SubClass.self)
 			let obj = SubClass(id: 1, name: "The name", another: "And another thing")
 			try table.insert(obj)
-			
+
 			guard let found = try table.where(\SubClass.id == 1).first() else {
 				return XCTFail("Did not find SubClass")
 			}
@@ -1110,7 +1115,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testURL() {
 		do {
 			let db = try getTestDB()
@@ -1131,51 +1136,51 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testManyJoins() {
 		do {
 			let db = try getTestDB()
-			struct Person2 : Codable{
-				var id : UUID
-				var name : String
-				let cars : [Car]?
-				let boats : [Boat]?
-				let houses : [House]?
+			struct Person2: Codable{
+				var id: UUID
+				var name: String
+				let cars: [Car]?
+				let boats: [Boat]?
+				let houses: [House]?
 			}
-			struct Car : Codable{
-				var id : UUID
-				var owner : UUID
+			struct Car: Codable{
+				var id: UUID
+				var owner: UUID
 			}
-			struct Boat : Codable{
-				var id : UUID
-				var owner : UUID
+			struct Boat: Codable{
+				var id: UUID
+				var owner: UUID
 			}
-			struct House : Codable{
-				var id : UUID
-				var owner : UUID
+			struct House: Codable{
+				var id: UUID
+				var owner: UUID
 			}
 			try db.create(Person2.self)
 			try db.table(Car.self).index(\.owner)
 			try db.table(Boat.self).index(\.owner)
 			try db.table(House.self).index(\.owner)
-			
+
 			let t1 = db.table(Person2.self)
 			let parentId = UUID()
 			let person = Person2(id: parentId, name: "The Person", cars: nil, boats: nil, houses: nil)
 			try t1.insert(person)
-			
+
 			for _ in 0..<5 {
 				try  db.table(Car.self).insert(.init(id: UUID(), owner: parentId))
 				try db.table(Boat.self).insert(.init(id: UUID(), owner: parentId))
 				try db.table(House.self).insert(.init(id: UUID(), owner: parentId))
 			}
-			
+
 			let j1 = try t1.join(\.cars, on: \.id, equals: \.owner)
 				.join(\.boats, on: \.id, equals: \.owner)
 				.join(\.houses, on: \.id, equals: \.owner)
 				.where(\Person2.id == parentId)
 			guard let j2 = try j1.first() else {
-				return XCTFail()
+				return XCTFail("many join fault")
 			}
 			XCTAssertEqual(5, j2.cars?.count)
 			XCTAssertEqual(5, j2.boats?.count)
@@ -1184,7 +1189,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testDateFormat() {
 		let fmt = Date(fromISO8601: "2018-08-18 08:10:51-04")
 		XCTAssertNotNil(fmt)
@@ -1195,7 +1200,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 		let fmt3 = Date(fromISO8601: "2018-08-18 08:10:51.43Z")
 		XCTAssertNotNil(fmt3)
 	}
-	
+
 	func testAssets() {
 		struct Asset: Codable {
 			let id: UUID
@@ -1209,7 +1214,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				assetLog = log
 			}
 		}
-		
+
 		struct AssetLog: Codable {
 			let assetId: UUID
 			let userId: UUID
@@ -1222,7 +1227,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 				self.returned = returned
 			}
 		}
-		
+
 		do {
 			let db = try getTestDB()
 			try db.create(Asset.self, policy: .dropTable)
@@ -1244,9 +1249,9 @@ class PerfectPostgreSQLTests: XCTestCase {
 		} catch {
 			XCTFail("\(error)")
 		}
-		
+
 	}
-	
+
 	func testReturningInsert() {
 		do {
 			let db = try getTestDB()
@@ -1291,7 +1296,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testReturningUpdate() {
 		do {
 			let db = try getTestDB()
@@ -1319,7 +1324,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
+
 	func testEmptyInsert() {
 		do {
 			let db = try getTestDB()
@@ -1334,7 +1339,7 @@ class PerfectPostgreSQLTests: XCTestCase {
 			try db.sql("DROP TABLE IF EXISTS \(ReturningItem.CRUDTableName)")
 			try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id SERIAL PRIMARY KEY, def INT DEFAULT 42)")
 			let table = db.table(ReturningItem.self)
-			
+
 			try table
 				.insert(ReturningItem(id: 0, def: 0),
 						ignoreKeys: \ReturningItem.id, \ReturningItem.def)
@@ -1345,42 +1350,4 @@ class PerfectPostgreSQLTests: XCTestCase {
 			XCTFail("\(error)")
 		}
 	}
-	
-	static var allTests = [
-		("testCreate1", testCreate1),
-		("testCreate2", testCreate2),
-		("testCreate3", testCreate3),
-		("testSelectAll", testSelectAll),
-		("testSelectIn", testSelectIn),
-		("testSelectLikeString", testSelectLikeString),
-		("testSelectJoin", testSelectJoin),
-		("testInsert1", testInsert1),
-		("testInsert2", testInsert2),
-		("testInsert3", testInsert3),
-		("testUpdate", testUpdate),
-		("testDelete", testDelete),
-		("testSelectLimit", testSelectLimit),
-		("testSelectLimitWhere", testSelectLimitWhere),
-		("testSelectOrderLimitWhere", testSelectOrderLimitWhere),
-		("testSelectWhereNULL", testSelectWhereNULL),
-		("testPersonThing", testPersonThing),
-		("testStandardJoin", testStandardJoin),
-		("testJunctionJoin", testJunctionJoin),
-		("testSelfJoin", testSelfJoin),
-		("testSelfJunctionJoin", testSelfJunctionJoin),
-		("testCodableProperty", testCodableProperty),
-		("testBadDecoding", testBadDecoding),
-		("testAllPrimTypes1", testAllPrimTypes1),
-		("testAllPrimTypes2", testAllPrimTypes2),
-		("testBespokeSQL", testBespokeSQL),
-		("testModelClasses", testModelClasses),
-		("testURL", testURL),
-		("testManyJoins", testManyJoins),
-		("testDateFormat", testDateFormat),
-		("testAssets", testAssets),
-		("testReturningInsert", testReturningInsert),
-		("testReturningUpdate", testReturningUpdate),
-		("testEmptyInsert", testEmptyInsert)
-	]
 }
-

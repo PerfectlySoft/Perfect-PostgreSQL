@@ -1,11 +1,11 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.4
 //  Package.swift
 //  Perfect-PostgreSQL
 //
 //  Created by Kyle Jessup on 3/22/16.
 //	Copyright (C) 2016 PerfectlySoft, Inc.
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 // This source file is part of the Perfect.org open source project
 //
@@ -14,12 +14,11 @@
 //
 // See http://perfect.org/licensing.html for license information
 //
-//===----------------------------------------------------------------------===//
+// ===----------------------------------------------------------------------===//
 //
 
 import PackageDescription
 
-#if os(macOS)
 let package = Package(
 	name: "PerfectPostgreSQL",
 	platforms: [
@@ -29,27 +28,14 @@ let package = Package(
 		.library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"])
 	],
 	dependencies: [
-		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "2.0.0"),
-		.package(url: "https://github.com/PerfectlySoft/Perfect-libpq.git", from: "2.0.0"),
-		],
-	targets: [
-		.target(name: "PerfectPostgreSQL", dependencies: ["PerfectCRUD"]),
-		.testTarget(name: "PerfectPostgreSQLTests", dependencies: ["PerfectPostgreSQL"])
-	]
-)
-#else
-let package = Package(
-	name: "PerfectPostgreSQL",
-	products: [
-		.library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"])
+		.package(url: "https://github.com/RockfordWei/Perfect.git", from: "5.6.13")
 	],
-	dependencies: [
-		.package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", from: "2.0.0"),
-		.package(url: "https://github.com/PerfectlySoft/Perfect-libpq-linux.git", from: "2.0.0"),
-		],
 	targets: [
-		.target(name: "PerfectPostgreSQL", dependencies: ["PerfectCRUD"]),
+		.systemLibrary(name: "libpq", pkgConfig: "libpq", providers: [
+            .apt(["libpq-dev"]),
+            .brew(["openssl", "postgres"])
+        ]),
+		.target(name: "PerfectPostgreSQL", dependencies: ["libpq", .product(name: "PerfectCRUD", package: "Perfect")]),
 		.testTarget(name: "PerfectPostgreSQLTests", dependencies: ["PerfectPostgreSQL"])
 	]
 )
-#endif

@@ -39,7 +39,7 @@ extension PGResult {
 		}
 		return ret
 	}
-	
+
 	private func byteFromHexDigits(one c1v: UInt8, two c2v: UInt8) -> UInt8? {
 		let capA: UInt8 = 65
 		let capF: UInt8 = 70
@@ -71,14 +71,14 @@ extension PGResult {
 	}
 }
 
-class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
+class PostgresCRUDRowReader<K: CodingKey>: KeyedDecodingContainerProtocol {
 	typealias Key = K
 	var codingPath: [CodingKey] = []
 	var allKeys: [Key] = []
 	let results: PGResult
 	let tupleIndex: Int
-	let fieldNames: [String:Int]
-	init(results r: PGResult, tupleIndex ti: Int, fieldNames fn: [String:Int]) {
+	let fieldNames: [String: Int]
+	init(results r: PGResult, tupleIndex ti: Int, fieldNames fn: [String: Int]) {
 		results = r
 		tupleIndex = ti
 		fieldNames = fn
@@ -137,7 +137,7 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 	func decode(_ type: String.Type, forKey key: Key) throws -> String {
 		return results.getFieldString(tupleIndex: tupleIndex, fieldIndex: try ensureIndex(forKey: key)) ?? ""
 	}
-	func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T : Decodable {
+	func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T: Decodable {
 		let index = try ensureIndex(forKey: key)
 		guard let special = SpecialType(type) else {
 			throw CRUDDecoderError("Unsupported type: \(type) for key: \(key.stringValue)")
@@ -193,7 +193,7 @@ class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
 			return try T(from: decoder)
 		}
 	}
-	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+	func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey: CodingKey {
 		throw CRUDDecoderError("Unimplimented nestedContainer")
 	}
 	func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
@@ -216,7 +216,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 	let connection: PGConnection
 	var parentTableStack: [TableStructure] = []
 	var bindings: Bindings = []
-	
+
 	init(connection c: PGConnection) {
 		connection = c
 	}
@@ -240,12 +240,12 @@ class PostgresGenDelegate: SQLGenDelegate {
 		if !policy.contains(.dropTable),
 			policy.contains(.reconcileTable),
 			let existingColumns = getExistingColumnData(forTable: forTable.tableName) {
-			let existingColumnMap: [String:PostgresColumnInfo] = .init(uniqueKeysWithValues: existingColumns.map { ($0.column_name, $0) })
-			let newColumnMap: [String:TableStructure.Column] = .init(uniqueKeysWithValues: forTable.columns.map { ($0.name.lowercased(), $0) })
-			
+			let existingColumnMap: [String: PostgresColumnInfo] = .init(uniqueKeysWithValues: existingColumns.map { ($0.column_name, $0) })
+			let newColumnMap: [String: TableStructure.Column] = .init(uniqueKeysWithValues: forTable.columns.map { ($0.name.lowercased(), $0) })
+
 			let addColumns = newColumnMap.keys.filter { existingColumnMap[$0] == nil }
 			let removeColumns: [String] = existingColumnMap.keys.filter { newColumnMap[$0] == nil }
-			
+
 			sub += try removeColumns.map {
 				return """
 				ALTER TABLE \(try quote(identifier: forTable.tableName)) DROP COLUMN \(try quote(identifier: $0))
@@ -271,7 +271,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 				try getCreateTableSQL(forTable: $0, policy: policy)
 			}
 		}
-		
+
 		return sub
 	}
 	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
@@ -401,13 +401,17 @@ class PostgresGenDelegate: SQLGenDelegate {
 }
 
 class PostgresExeDelegate: SQLExeDelegate {
+    func asyncExecute(completion: @escaping (SQLExeDelegate) -> ()) {
+        completion(self)
+    }
+
 	var nextBindings: Bindings = []
 	let connection: PGConnection
 	let sql: String
 	var results: PGResult?
 	var tupleIndex = -1
 	var numTuples = 0
-	var fieldNames: [String:Int] = [:]
+	var fieldNames: [String: Int] = [:]
 	init(connection c: PGConnection, sql s: String) {
 		connection = c
 		sql = s
@@ -420,13 +424,13 @@ class PostgresExeDelegate: SQLExeDelegate {
 			nextBindings = nextBindings[0..<skip] + bindings
 		}
 	}
-	
+
 	func resetResults() {
 		tupleIndex = -1
 		numTuples = 0
 		results = nil
 	}
-	
+
 	func hasNext() throws -> Bool {
 		tupleIndex += 1
 		if nil == results {
@@ -464,8 +468,8 @@ class PostgresExeDelegate: SQLExeDelegate {
 		}
 		return tupleIndex < numTuples
 	}
-	
-	func next<A>() throws -> KeyedDecodingContainer<A>? where A : CodingKey {
+
+	func next<A>() throws -> KeyedDecodingContainer<A>? where A: CodingKey {
 		guard let results = self.results else {
 			return nil
 		}
@@ -474,7 +478,7 @@ class PostgresExeDelegate: SQLExeDelegate {
 																  fieldNames: fieldNames))
 		return ret
 	}
-	
+
 	private func bindOne(expr: CRUDExpression) throws -> Any? {
 		switch expr {
 		case .lazy(let e):
@@ -531,7 +535,7 @@ class PostgresExeDelegate: SQLExeDelegate {
 
 public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	let connection: PGConnection
-	
+
 	public init(url: String?,
 				 name: String?,
 				 host: String?,
@@ -547,7 +551,7 @@ public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 			try self.init(database: database, host: host, port: port, username: user, password: pass)
 		}
 	}
-	
+
 	public init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
 		var s = "host=\(host) dbname=\(database)"
 		if let p = port {
