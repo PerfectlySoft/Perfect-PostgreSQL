@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "PerfectPostgreSQL",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v12)],
     products: [
         .library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"]),
     ],
