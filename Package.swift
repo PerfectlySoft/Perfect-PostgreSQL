@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "PerfectPostgreSQL", targets: ["PerfectPostgreSQL"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/taplin/Perfect-CRUD.git", branch: "main"),
+        .package(url: "https://github.com/PerfectlySoft/Perfect-CRUD.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     ],
     targets: [
