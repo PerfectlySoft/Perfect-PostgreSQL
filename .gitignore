@@ -69,3 +69,6 @@ fastlane/screenshots
 Packages/
 PostgreSQL.xcodeproj/
 .DS_Store
+
+# Local SwiftPM dependency mirrors (machine-specific absolute paths, never commit)
+.swiftpm/

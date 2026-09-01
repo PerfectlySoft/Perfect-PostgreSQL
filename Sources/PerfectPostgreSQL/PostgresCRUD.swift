@@ -71,7 +71,7 @@ extension PGResult {
 	}
 }
 
-class PostgresCRUDRowReader<K : CodingKey>: KeyedDecodingContainerProtocol {
+class PostgresCRUDRowReader<K: CodingKey>: KeyedDecodingContainerProtocol, @unchecked Sendable {
 	typealias Key = K
 	var codingPath: [CodingKey] = []
 	var allKeys: [Key] = []
@@ -212,7 +212,7 @@ struct PostgresColumnInfo: Codable {
 	let data_type: String
 }
 
-class PostgresGenDelegate: SQLGenDelegate {
+class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 	let connection: PGConnection
 	var parentTableStack: [TableStructure] = []
 	var bindings: Bindings = []
@@ -220,7 +220,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 	init(connection c: PGConnection) {
 		connection = c
 	}
-	func getBinding(for expr: Expression) throws -> String {
+	func getBinding(for expr: CRUDExpression) throws -> String {
 		let id = "$\(bindings.count+1)"
 		bindings.append((id, expr))
 		return id
@@ -400,7 +400,7 @@ class PostgresGenDelegate: SQLGenDelegate {
 	}
 }
 
-class PostgresExeDelegate: SQLExeDelegate {
+class PostgresExeDelegate: SQLExeDelegate, @unchecked Sendable {
 	var nextBindings: Bindings = []
 	let connection: PGConnection
 	let sql: String

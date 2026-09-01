@@ -1,70 +1,54 @@
 # Perfect - PostgreSQL Connector
 
 <p align="center">
-    <a href="http://perfect.org/get-involved.html" target="_blank">
-        <img src="http://perfect.org/assets/github/perfect_github_2_0_0.jpg" alt="Get Involed with Perfect!" width="854" />
-    </a>
-</p>
-
-<p align="center">
-    <a href="https://github.com/PerfectlySoft/Perfect" target="_blank">
-        <img src="http://www.perfect.org/github/Perfect_GH_button_1_Star.jpg" alt="Star Perfect On Github" />
-    </a>  
-    <a href="http://stackoverflow.com/questions/tagged/perfect" target="_blank">
-        <img src="http://www.perfect.org/github/perfect_gh_button_2_SO.jpg" alt="Stack Overflow" />
-    </a>  
-    <a href="https://twitter.com/perfectlysoft" target="_blank">
-        <img src="http://www.perfect.org/github/Perfect_GH_button_3_twit.jpg" alt="Follow Perfect on Twitter" />
-    </a>  
-    <a href="http://perfect.ly" target="_blank">
-        <img src="http://www.perfect.org/github/Perfect_GH_button_4_slack.jpg" alt="Join the Perfect Slack" />
-    </a>
-</p>
-
-<p align="center">
     <a href="https://developer.apple.com/swift/" target="_blank">
-        <img src="https://img.shields.io/badge/Swift-4.0-orange.svg?style=flat" alt="Swift 4.0">
+        <img src="https://img.shields.io/badge/Swift-6.2-orange.svg?style=flat" alt="Swift 6.2">
     </a>
     <a href="https://developer.apple.com/swift/" target="_blank">
-        <img src="https://img.shields.io/badge/Platforms-OS%20X%20%7C%20Linux%20-lightgray.svg?style=flat" alt="Platforms OS X | Linux">
+        <img src="https://img.shields.io/badge/Platforms-macOS%2012%2B-lightgray.svg?style=flat" alt="Platforms macOS 12+">
     </a>
-    <a href="http://perfect.org/licensing.html" target="_blank">
+    <a href="LICENSE" target="_blank">
         <img src="https://img.shields.io/badge/License-Apache-lightgrey.svg?style=flat" alt="License Apache">
     </a>
-    <a href="http://twitter.com/PerfectlySoft" target="_blank">
-        <img src="https://img.shields.io/badge/Twitter-@PerfectlySoft-blue.svg?style=flat" alt="PerfectlySoft Twitter">
-    </a>
-    <a href="http://perfect.ly" target="_blank">
-        <img src="http://perfect.ly/badge.svg" alt="Slack Status">
-    </a>
 </p>
 
+This package has been modernized for Swift 6.
 
-This project provides a Swift wrapper around the libpq client library, enabling access to PostgreSQL servers.
+It provides a Swift wrapper around the `libpq` client library for connecting to PostgreSQL servers, **and** a full [Perfect-CRUD](https://github.com/PerfectlySoft/Perfect-CRUD) SQL provider backend for PostgreSQL. `Sources/PerfectPostgreSQL/PostgresCRUD.swift` implements Perfect-CRUD's `SQLGenDelegate`, `SQLExeDelegate`, and `DatabaseConfigurationProtocol`, so this is no longer a bare, stand-alone libpq connector — it's a CRUD driver that happens to also expose the lower-level `PGConnection`/`PGResult` libpq wrapper (`Sources/PerfectPostgreSQL/PerfectPostgreSQL.swift`, using `swift-log` for diagnostics rather than `print`).
 
-This package builds with Swift Package Manager and is part of the [Perfect](https://github.com/PerfectlySoft/Perfect) project. It was written to be stand-alone and so does not require PerfectLib or any other components.
+**Usage status:** this driver is real, tested, and consumed today — [Perfect-Session](https://github.com/PerfectlySoft/Perfect-Session)'s `PostgreSQLSessionDriver` imports `PerfectPostgreSQL` directly and is one of Perfect-Session's four supported backend drivers.
 
-Ensure you have installed and activated the latest Swift 4.0 tool chain.
+The pre-Swift-6 version of this package is preserved on the [`legacy`](../../tree/legacy) branch.
+
+Both `libpq` wrapper types (`PGConnection`, `PGResult`) are synchronous/blocking and marked `@unchecked Sendable`; there is no async/await API in this package.
+
+This package builds with Swift Package Manager. Ensure you have installed and activated a Swift 6.2 (or later) tool chain.
+
+## Requirements
+
+- swift-tools-version: 6.2, built with `swiftLanguageMode(.v6)` (strict concurrency)
+- Platform: `platforms: [.macOS(.v12)]` — macOS 12 or later (no other Apple platforms declared)
+- Linux is buildable via SwiftPM/systemLibrary (the `libpq` system-library target declares an `.apt(["libpq-dev"])` provider) but is not asserted in the `platforms` array, so Linux support is implicit, not a guaranteed contract of this manifest.
+
+## Dependencies
+
+Declared in `Package.swift`:
+
+- [`Perfect-CRUD`](https://github.com/PerfectlySoft/Perfect-CRUD) (`.package(url:, branch: "main")`), product `PerfectCRUD`.
+- [`swift-log`](https://github.com/apple/swift-log.git) `from: 1.5.0`, product `Logging`.
+- A `.systemLibrary` target `libpq` (via `pkgConfig: "libpq"`) providing the C libpq bindings.
 
 ## macOS Build Notes
 
-This package requires the [Home Brew](http://brew.sh) build of PostgreSQL.
-
-To install Home Brew:
+This package requires the `libpq` client library, available via Homebrew:
 
 ```
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-```
-
-To install postgres:
-
-```
-brew install postgres
+brew install libpq
 ```
 
 ## Linux Build Notes
 
-Ensure that you have installed libpq-dev.
+Ensure that you have installed `libpq-dev`.
 
 ```
 sudo apt-get install libpq-dev
@@ -72,12 +56,31 @@ sudo apt-get install libpq-dev
 
 ## Building
 
-Add this project as a dependency in your Package.swift file.
+Add this project as a dependency in your `Package.swift` file:
+
+```swift
+dependencies: [
+    // No tagged releases exist yet, so pin a branch rather than a version:
+    .package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", branch: "main"),
+],
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: [
+            .product(name: "PerfectPostgreSQL", package: "Perfect-PostgreSQL"),
+        ]
+    ),
+]
+```
+
+## Testing
+
+A test target is included. Run it with:
 
 ```
-.Package(url: "https://github.com/PerfectlySoft/Perfect-PostgreSQL.git", majorVersion: 3)
+swift test
 ```
 
-## Documentation
+## License
 
-For more information, please visit [perfect.org](http://www.perfect.org/docs/PostgreSQL.html).
+Apache 2.0 — see [LICENSE](LICENSE).
