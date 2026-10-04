@@ -18,7 +18,8 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     return Database(configuration: try DBConfiguration(postgresTestConnInfo))
 }
 
-@Suite struct PerfectPostgreSQLTests {
+// Serialized: every test drops and recreates the same database.
+@Suite(.serialized) struct PerfectPostgreSQLTests {
 
     struct TestTable1: Codable, TableNameProvider {
         enum CodingKeys: String, CodingKey {
@@ -839,5 +840,67 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         try table.insert(ReturningItem(id: 0, def: 0), ignoreKeys: \ReturningItem.id, \ReturningItem.def)
         _ = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
                                  ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+    }
+}
+
+/// Low-level PGConnection checks: every parameter type `exec(statement:params:)` accepts must reach
+/// the server intact, and COPY data must be sent with its byte length.
+@Suite struct PGConnectionParameterTests {
+    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+
+    func connect() throws -> PGConnection {
+        let conn = PGConnection()
+        let status = conn.connectdb(postgresInitConnInfo)
+        guard status == .ok else {
+            throw PostgresCRUDError("connect failed: \(conn.errorMessage())")
+        }
+        return conn
+    }
+
+    @Test func execParamsRoundTrip() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        let text = "héllo wörld ✓ 日本語"
+        let bytes: [UInt8] = [0, 1, 2, 127, 128, 254, 255]
+        let result = conn.exec(
+            statement: "SELECT $1::text, $2::text, $3::bytea, $4::bytea, $5::bytea, $6::text IS NULL, octet_length($1::text)",
+            params: [text, 42, bytes, bytes.map { Int8(bitPattern: $0) }, Data(bytes), nil])
+        #expect(result.status() == .tuplesOK, "\(result.errorMessage())")
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == text)
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 1) == "42")
+        let expected = bytes.map { Int8(bitPattern: $0) }
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 2) == expected)
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 3) == expected)
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 4) == expected)
+        #expect(result.getFieldBool(tupleIndex: 0, fieldIndex: 5) == true)
+        #expect(result.getFieldInt(tupleIndex: 0, fieldIndex: 6) == text.utf8.count)
+    }
+
+    @Test func manyParamsInOneStatement() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        // Enough parameters that stale or reused memory would show up as wrong values.
+        let values = (1...200).map { "value-\($0)-ü" }
+        let placeholders = (1...200).map { "$\($0)::text" }.joined(separator: " || ',' || ")
+        let result = conn.exec(statement: "SELECT \(placeholders)", params: values)
+        #expect(result.status() == .tuplesOK, "\(result.errorMessage())")
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == values.joined(separator: ","))
+    }
+
+    @Test func copyDataWithNonASCIIText() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        #expect(conn.exec(statement: "CREATE TEMP TABLE copy_test (t text)").status() == .commandOK)
+        #expect(conn.exec(statement: "COPY copy_test FROM STDIN").status() != .fatalError) // COPY IN has no StatusType case of its own
+        conn.putCopyData(data: "naïve café ✓\n")
+        conn.putCopyData(data: "日本語\n")
+        #expect(conn.putCopyEnd().status() == .commandOK)
+        let result = conn.exec(statement: "SELECT t FROM copy_test ORDER BY t")
+        #expect(result.numTuples() == 2)
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == "naïve café ✓")
+        #expect(result.getFieldString(tupleIndex: 1, fieldIndex: 0) == "日本語")
     }
 }

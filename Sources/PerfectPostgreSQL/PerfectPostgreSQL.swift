@@ -391,7 +391,8 @@ public final class PGConnection: @unchecked Sendable {
 	
 	/// Sends data to the server during COPY_IN state.
 	public func putCopyData(data: String) {
-		PQputCopyData(self.conn, data, Int32(data.count))
+		// The length is in bytes; String.count would count Characters and cut off non-ASCII data.
+		PQputCopyData(self.conn, data, Int32(data.utf8.count))
 	}
 	
 	/// Sends end-of-data indication to the server during COPY_IN state.
@@ -410,51 +411,54 @@ public final class PGConnection: @unchecked Sendable {
 		let types = UnsafeMutablePointer<Oid>.allocate(capacity: count)
 		let lengths = UnsafeMutablePointer<Int32>.allocate(capacity: count)
 		let formats = UnsafeMutablePointer<Int32>.allocate(capacity: count)
+		// Parameter values are copied into buffers owned by this call. A pointer from an implicit
+		// array-to-pointer conversion (e.g. `OpaquePointer(array)`) is only valid during that one
+		// expression, and an optimized build may release the array before PQexecParams reads it.
+		var ownedBuffers = [UnsafeMutablePointer<UInt8>]()
 		defer {
 			values.deinitialize(count: count) ; values.deallocate()
 			types.deinitialize(count: count) ; types.deallocate()
 			lengths.deinitialize(count: count) ; lengths.deallocate()
 			formats.deinitialize(count: count) ; formats.deallocate()
+			ownedBuffers.forEach { $0.deallocate() }
 		}
-		var asStrings = [String]()
-		var temps = [[UInt8]]()
+		func copy<C: Collection>(_ bytes: C, nulTerminated: Bool) -> UnsafePointer<Int8> where C.Element == UInt8 {
+			let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bytes.count + 1)
+			_ = UnsafeMutableBufferPointer(start: buffer, count: bytes.count).initialize(from: bytes)
+			if nulTerminated {
+				buffer[bytes.count] = 0
+			}
+			ownedBuffers.append(buffer)
+			return UnsafeRawPointer(buffer).assumingMemoryBound(to: Int8.self)
+		}
 		for idx in 0..<count {
 			switch params[idx] {
 			case let s as String:
-				var aa = [UInt8](s.utf8)
-				aa.append(0)
-				temps.append(aa)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				values[idx] = copy(s.utf8, nulTerminated: true)
 				types[idx] = 0
 				lengths[idx] = 0
 				formats[idx] = 0
 			case let a as [UInt8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = copy(a, nulTerminated: false)
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
 			case let a as [Int8]:
 				let length = Int32(a.count)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(a))
+				values[idx] = copy(a.lazy.map { UInt8(bitPattern: $0) }, nulTerminated: false)
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
 			case let d as Data:
-				let a = d.map { $0 }
-				let length = Int32(a.count)
-				temps.append(a)
-				values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+				let length = Int32(d.count)
+				values[idx] = copy(d, nulTerminated: false)
 				types[idx] = 17
 				lengths[idx] = length
 				formats[idx] = 1
 			default:
 				if let pm = params[idx] {
-					asStrings.append("\(pm)")
-					var aa = [UInt8](asStrings.last!.utf8)
-					aa.append(0)
-					temps.append(aa)
-					values[idx] = UnsafePointer<Int8>(OpaquePointer(temps.last!))
+					values[idx] = copy("\(pm)".utf8, nulTerminated: true)
 				} else {
 					values[idx] = nil
 				}//end if
