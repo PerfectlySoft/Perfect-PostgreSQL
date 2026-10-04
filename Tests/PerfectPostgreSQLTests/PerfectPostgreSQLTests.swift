@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import PerfectCRUD
+import libpq
 @testable import PerfectPostgreSQL
 
 let testDBRowCount = 5
@@ -18,7 +19,8 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     return Database(configuration: try DBConfiguration(postgresTestConnInfo))
 }
 
-@Suite struct PerfectPostgreSQLTests {
+// Serialized: every test drops and recreates the same database.
+@Suite(.serialized) struct PerfectPostgreSQLTests {
 
     struct TestTable1: Codable, TableNameProvider {
         enum CodingKeys: String, CodingKey {
@@ -839,5 +841,125 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         try table.insert(ReturningItem(id: 0, def: 0), ignoreKeys: \ReturningItem.id, \ReturningItem.def)
         _ = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
                                  ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+    }
+}
+
+/// Low-level PGConnection checks: every parameter type `exec(statement:params:)` accepts must reach
+/// the server intact, and COPY data must be sent with its byte length.
+/// Uses only `dbname=postgres` and TEMP tables; don't call `getDB()` here, because
+/// PerfectPostgreSQLTests drops and recreates its database and this suite runs alongside it.
+@Suite struct PGConnectionParameterTests {
+    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+
+    func connect() throws -> PGConnection {
+        let conn = PGConnection()
+        let status = conn.connectdb(postgresInitConnInfo)
+        guard status == .ok else {
+            throw PostgresCRUDError("connect failed: \(conn.errorMessage())")
+        }
+        return conn
+    }
+
+    @Test func execParamsRoundTrip() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        let text = "héllo wörld ✓ 日本語"
+        let bytes: [UInt8] = [0, 1, 2, 127, 128, 254, 255]
+        let result = conn.exec(
+            statement: "SELECT $1::text, $2::text, $3::bytea, $4::bytea, $5::bytea, $6::text IS NULL, octet_length($1::text)",
+            params: [text, 42, bytes, bytes.map { Int8(bitPattern: $0) }, Data(bytes), nil])
+        #expect(result.status() == .tuplesOK, "\(result.errorMessage())")
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == text)
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 1) == "42")
+        let expected = bytes.map { Int8(bitPattern: $0) }
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 2) == expected)
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 3) == expected)
+        #expect(result.getFieldBlob(tupleIndex: 0, fieldIndex: 4) == expected)
+        #expect(result.getFieldBool(tupleIndex: 0, fieldIndex: 5) == true)
+        #expect(result.getFieldInt(tupleIndex: 0, fieldIndex: 6) == text.utf8.count)
+    }
+
+    @Test func manyParamsInOneStatement() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        // Many parameters in one call: guards the per-parameter buffers against mix-ups.
+        let values = (1...200).map { "value-\($0)-ü" }
+        let placeholders = (1...200).map { "$\($0)::text" }.joined(separator: " || ',' || ")
+        let result = conn.exec(statement: "SELECT \(placeholders)", params: values)
+        #expect(result.status() == .tuplesOK, "\(result.errorMessage())")
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == values.joined(separator: ","))
+    }
+
+    @Test func copyDataWithNonASCIIText() throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        #expect(conn.exec(statement: "CREATE TEMP TABLE copy_test (t text)").status() == .commandOK)
+        #expect(conn.exec(statement: "COPY copy_test FROM STDIN").statusInt() == Int(PGRES_COPY_IN.rawValue))
+        conn.putCopyData(data: "naïve café ✓\n")
+        conn.putCopyData(data: "日本語\n")
+        #expect(conn.putCopyEnd().status() == .commandOK)
+        let result = conn.exec(statement: "SELECT t FROM copy_test ORDER BY t")
+        #expect(result.numTuples() == 2)
+        #expect(result.getFieldString(tupleIndex: 0, fieldIndex: 0) == "naïve café ✓")
+        #expect(result.getFieldString(tupleIndex: 1, fieldIndex: 0) == "日本語")
+    }
+}
+
+/// PGConnection is `Sendable`: one connection shared between tasks must stay usable, and a
+/// transaction must not have other callers' statements slipped into it.
+@Suite struct PGConnectionConcurrencyTests {
+    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+
+    func connect() throws -> PGConnection {
+        let conn = PGConnection()
+        guard conn.connectdb(postgresInitConnInfo) == .ok else {
+            throw PostgresCRUDError("connect failed: \(conn.errorMessage())")
+        }
+        return conn
+    }
+
+    @Test func sharedConnectionAcrossTasks() async throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for i in 0..<50 {
+                group.addTask {
+                    let result = conn.exec(statement: "SELECT $1::int + 1, pg_sleep(0.001)", params: [i])
+                    #expect(result.status() == .tuplesOK, "\(result.errorMessage())")
+                    #expect(result.getFieldInt(tupleIndex: 0, fieldIndex: 0) == i + 1)
+                }
+            }
+            try await group.waitForAll()
+        }
+        #expect(conn.status() == .ok)
+    }
+
+    @Test func transactionIsNotInterleaved() async throws {
+        guard pgEnabled else { return }
+        let conn = try connect()
+        defer { conn.finish() }
+        try conn.execute(statement: "CREATE TEMP TABLE tx_test (n int)")
+        let started = AsyncStream<Void>.makeStream()
+        async let writer: Void = Task.detached {
+            try conn.doWithTransaction {
+                try conn.execute(statement: "INSERT INTO tx_test VALUES (1)")
+                started.continuation.yield()
+                // Long enough for the reader below to try to run inside this transaction.
+                try conn.execute(statement: "SELECT pg_sleep(0.3)")
+                try conn.execute(statement: "INSERT INTO tx_test VALUES (2)")
+            }
+        }.value
+        var iterator = started.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        // Without the lock this would run between the two inserts and see 1 row.
+        let seen = try await Task.detached {
+            try conn.execute(statement: "SELECT count(*) FROM tx_test").getFieldInt(tupleIndex: 0, fieldIndex: 0)
+        }.value
+        try await writer
+        #expect(seen == 2)
     }
 }
