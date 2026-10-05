@@ -225,8 +225,23 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 		bindings.append((id, expr))
 		return id
 	}
+	// Lowercased to match Postgres's folding of unquoted names. An embedded
+	// `"` is doubled (standard SQL identifier quoting) so a name can't end the
+	// quoted identifier early: the Dynamic API passes caller-supplied table
+	// and field names through here.
+	//
+	// Escaped per Unicode scalar, not with replacingOccurrences: that matches
+	// whole Characters, so a `"` followed by a combining mark (U+0301) would
+	// not match and would reach the SQL unescaped.
 	func quote(identifier: String) throws -> String {
-		return "\"\(identifier.lowercased())\""
+		var escaped = String.UnicodeScalarView()
+		for scalar in identifier.lowercased().unicodeScalars {
+			if scalar == "\"" {
+				escaped.append(scalar)
+			}
+			escaped.append(scalar)
+		}
+		return "\"\(String(escaped))\""
 	}
 	// A table's FOREIGN KEY constraint needs its target table to exist, and dropping a table
 	// with CASCADE also drops the constraints that reference it. So all the tables are put in
