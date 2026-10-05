@@ -228,15 +228,58 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 	func quote(identifier: String) throws -> String {
 		return "\"\(identifier.lowercased())\""
 	}
+	// A table's FOREIGN KEY constraint needs its target table to exist, and dropping a table
+	// with CASCADE also drops the constraints that reference it. So all the tables are put in
+	// an order where each one comes after the tables it references (the parent before a child
+	// that references it, a sub-table before a parent that references it), then they're
+	// dropped in the reverse of that order (`.dropTable`), then created or reconciled in it.
+	// Before, each table was dropped and created before its sub-tables: a parent referencing a
+	// sub-table couldn't be created, and recreating it lost its constraint when the sub-table
+	// was dropped after it. A table referencing itself is fine either way. Two tables
+	// referencing each other can't be created by `create()` at all, so they keep the order
+	// they were given in.
 	func getCreateTableSQL(forTable: TableStructure, policy: TableCreatePolicy) throws -> [String] {
-		parentTableStack.append(forTable)
-		defer {
-			parentTableStack.removeLast()
+		var tables: [TableStructure] = []
+		func collect(_ table: TableStructure) {
+			guard !tables.contains(where: { $0.tableName == table.tableName }) else {
+				return
+			}
+			tables.append(table)
+			if !policy.contains(.shallow) {
+				table.subTables.forEach(collect)
+			}
 		}
-		var sub: [String] = []
+		collect(forTable)
+		var ordered: [TableStructure] = []
+		var remaining = tables
+		while !remaining.isEmpty {
+			let pending = Set(remaining.map(\.tableName))
+			let next = remaining.firstIndex { table in
+				!table.columns.contains { column in
+					column.properties.contains {
+						if case .foreignKey(let target, _, _, _) = $0 {
+							return target != table.tableName && pending.contains(target)
+						}
+						return false
+					}
+				}
+			} ?? remaining.startIndex
+			ordered.append(remaining.remove(at: next))
+		}
+		var sql: [String] = []
 		if policy.contains(.dropTable) {
-			sub += ["DROP TABLE IF EXISTS \(try quote(identifier: forTable.tableName)) CASCADE"]
+			sql += try ordered.reversed().map { "DROP TABLE IF EXISTS \(try quote(identifier: $0.tableName)) CASCADE" }
 		}
+		for table in ordered {
+			parentTableStack.append(table)
+			defer {
+				parentTableStack.removeLast()
+			}
+			sql += try getCreateOrReconcileSQL(forTable: table, policy: policy)
+		}
+		return sql
+	}
+	private func getCreateOrReconcileSQL(forTable: TableStructure, policy: TableCreatePolicy) throws -> [String] {
 		if !policy.contains(.dropTable),
 			policy.contains(.reconcileTable),
 			let existingColumns = getExistingColumnData(forTable: forTable.tableName) {
@@ -246,7 +289,7 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 			let addColumns = newColumnMap.keys.filter { existingColumnMap[$0] == nil }
 			let removeColumns: [String] = existingColumnMap.keys.filter { newColumnMap[$0] == nil }
 			
-			sub += try removeColumns.map {
+			var sub: [String] = try removeColumns.map {
 				return """
 				ALTER TABLE \(try quote(identifier: forTable.tableName)) DROP COLUMN \(try quote(identifier: $0))
 				"""
@@ -258,32 +301,29 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 				"""
 			}
 			return sub
-		} else {
-			sub += [
-				"""
-				CREATE TABLE IF NOT EXISTS \(try quote(identifier: forTable.tableName)) (
-				\(try forTable.columns.map { try getColumnDefinition($0) }.joined(separator: ",\n\t"))
-				)
-				"""]
 		}
-		if !policy.contains(.shallow) {
-			sub += try forTable.subTables.flatMap {
-				try getCreateTableSQL(forTable: $0, policy: policy)
-			}
-		}
-		
-		return sub
+		return [
+			"""
+			CREATE TABLE IF NOT EXISTS \(try quote(identifier: forTable.tableName)) (
+			\(try forTable.columns.map { try getColumnDefinition($0) }.joined(separator: ",\n\t"))
+			)
+			"""]
 	}
+	// The columns of the table the unqualified name resolves to on this connection's
+	// search_path, as the ALTER TABLE statements will. Matching `information_schema.columns`
+	// on the table name alone also took the columns of same-named tables in other schemas, and
+	// a column name occurring twice crashed reconcile (duplicate dictionary key).
 	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
 		do {
 			let statement =
 				"""
-				SELECT column_name, data_type
-				FROM INFORMATION_SCHEMA.COLUMNS
-				WHERE table_name = $1
+				SELECT attname::text AS column_name, format_type(atttypid, atttypmod) AS data_type
+				FROM pg_catalog.pg_attribute
+				WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped
+				ORDER BY attnum
 				"""
 			let exeDelegate = PostgresExeDelegate(connection: connection, sql: statement)
-			exeDelegate.nextBindings = [("$1", .string(forTable.lowercased()))]
+			exeDelegate.nextBindings = [("$1", .string(try quote(identifier: forTable)))]
 			var ret: [PostgresColumnInfo] = []
 			while try exeDelegate.hasNext() {
 				let rowDecoder: CRUDRowDecoder<ColumnKey> = CRUDRowDecoder(delegate: exeDelegate)
