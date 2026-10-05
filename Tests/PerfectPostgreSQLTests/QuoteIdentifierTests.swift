@@ -22,6 +22,14 @@ extension PerfectPostgreSQLTests {
         #expect(try gen.quote(identifier: #"""#) == #""""""#)
         #expect(try gen.quote(identifier: #"x" = "x" OR "x"#) == #""x"" = ""x"" or ""x""#)
         #expect(try gen.quote(identifier: "") == #""""#)
+        // A `"` followed by a combining mark or variation selector is one
+        // Character with it; it must still be doubled as a scalar.
+        for name in ["a\"\u{301}b", "\"\u{301}", "a\"\u{FE0F}b", "a\"\u{200D}b", "\u{600}\"x"] {
+            let quoted = try gen.quote(identifier: name)
+            let inner = name.unicodeScalars.filter { $0 == "\"" }.count
+            #expect(quoted.utf8.filter { $0 == UInt8(ascii: "\"") }.count == 2 + 2 * inner, "\(name.unicodeScalars.map { $0.value })")
+        }
+        #expect(try gen.quote(identifier: "a\"\u{301}b") == "\"a\"\"\u{301}b\"")
     }
 
     @Test func dynamicMutationWithQuoteInTableAndFieldNames() throws {
@@ -77,6 +85,15 @@ extension PerfectPostgreSQLTests {
                 predicates: [.init(field: "id", comparison: .equal, value: .int(1))]))
         }
         #expect(try db.sql(#"SELECT COUNT(*)::int AS c FROM "quote_victim" WHERE "id" = 99"#, Count.self)[0].c == 0)
+        // A combining mark after the quote: the name must stay one identifier.
+        // (Escaping with replacingOccurrences left that `"` bare; the quote()
+        // test above is what catches it.)
+        #expect(throws: (any Error).self) {
+            try db.mutate(DynamicMutation(
+                action: .delete, table: "quote_victim\"\u{301} --",
+                predicates: [.init(field: "id", comparison: .equal, value: .int(1))]))
+        }
+        #expect(try count() == 3)
         // The same table name works as a plain identifier when the table exists.
         try db.sql(#"CREATE TABLE "quote_victim"" --" ("id" INT PRIMARY KEY)"#)
         try db.sql(#"INSERT INTO "quote_victim"" --" ("id") VALUES (1), (2)"#)
