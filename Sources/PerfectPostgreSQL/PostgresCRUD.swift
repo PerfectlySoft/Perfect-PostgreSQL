@@ -312,15 +312,17 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 	// The columns of the table the unqualified name resolves to on this connection's
 	// search_path, as the ALTER TABLE statements will. Matching `information_schema.columns`
 	// on the table name alone also took the columns of same-named tables in other schemas, and
-	// a column name occurring twice crashed reconcile (duplicate dictionary key).
+	// a column name occurring twice crashed reconcile (duplicate dictionary key). Only a table
+	// counts: a sequence, index or view of that name is left alone, as before.
 	func getExistingColumnData(forTable: String) -> [PostgresColumnInfo]? {
 		do {
 			let statement =
 				"""
-				SELECT attname::text AS column_name, format_type(atttypid, atttypmod) AS data_type
-				FROM pg_catalog.pg_attribute
-				WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped
-				ORDER BY attnum
+				SELECT a.attname::text AS column_name, format_type(a.atttypid, a.atttypmod) AS data_type
+				FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+				WHERE a.attrelid = to_regclass($1) AND c.relkind IN ('r', 'p')
+					AND a.attnum > 0 AND NOT a.attisdropped
+				ORDER BY a.attnum
 				"""
 			let exeDelegate = PostgresExeDelegate(connection: connection, sql: statement)
 			exeDelegate.nextBindings = [("$1", .string(try quote(identifier: forTable)))]

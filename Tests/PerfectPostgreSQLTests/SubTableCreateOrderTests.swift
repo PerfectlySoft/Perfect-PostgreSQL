@@ -169,8 +169,7 @@ struct SubTableCreateOrderLiveTests {
 
 		let row = try #require(try db.table(ReconcileRow.self).where(\ReconcileRow.id == 1).first())
 		#expect(row.camelName == "kept")
-		let columns = try db.sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'reconcilerow' ORDER BY ordinal_position", ColumnName.self).map(\.column_name)
-		#expect(columns == ["id", "camelname"])
+		#expect(try publicColumns(db, "reconcilerow") == ["id", "camelname"])
 	}
 
 	@Test(.enabled(if: ProcessInfo.processInfo.environment["PG_TESTS"] == "1"))
@@ -188,5 +187,33 @@ struct SubTableCreateOrderLiveTests {
 		#expect(row.camelName == "kept")
 		let other = try db.sql("SELECT column_name FROM information_schema.columns WHERE table_schema = 'other' AND table_name = 'reconcilerow' ORDER BY ordinal_position", ColumnName.self).map(\.column_name)
 		#expect(other == ["id", "camelname", "unrelated"])
+		#expect(try publicColumns(db, "reconcilerow") == ["id", "camelname"])
+	}
+
+	@Test(.enabled(if: ProcessInfo.processInfo.environment["PG_TESTS"] == "1"))
+	func reconcileReachesExistingSubTables() throws {
+		let db = try freshDatabase()
+		defer { dropDatabase() }
+
+		// Both tables exist and the child lacks a column the model has. Reconciling the parent
+		// reconciles the child too (it used to stop at an existing parent).
+		try db.create(OrderParent.self)
+		try db.sql("ALTER TABLE orderchild DROP COLUMN parentid")
+		try db.create(OrderParent.self, policy: .reconcileTable)
+		#expect(try publicColumns(db, "orderchild") == ["id", "parentid"])
+		#expect(try foreignKeys(db, "orderchild") == ["parentid -> orderparent"])
+	}
+
+	@Test(.enabled(if: ProcessInfo.processInfo.environment["PG_TESTS"] == "1"))
+	func reconcileLeavesASequenceOfTheModelsNameAlone() throws {
+		let db = try freshDatabase()
+		defer { dropDatabase() }
+
+		try db.sql("CREATE SEQUENCE reconcilerow")
+		try db.create(ReconcileRow.self, policy: .reconcileTable)
+	}
+
+	private func publicColumns(_ db: Database<PostgresDatabaseConfiguration>, _ table: String) throws -> [String] {
+		try db.sql("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '\(table)' ORDER BY ordinal_position", ColumnName.self).map(\.column_name)
 	}
 }
