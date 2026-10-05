@@ -225,8 +225,12 @@ class PostgresGenDelegate: SQLGenDelegate, @unchecked Sendable {
 		bindings.append((id, expr))
 		return id
 	}
+	// Lowercased to match Postgres's folding of unquoted names. An embedded
+	// `"` is doubled (standard SQL identifier quoting) so a name can't end the
+	// quoted identifier early: the Dynamic API passes caller-supplied table
+	// and field names through here.
 	func quote(identifier: String) throws -> String {
-		return "\"\(identifier.lowercased())\""
+		return "\"\(identifier.lowercased().replacingOccurrences(of: "\"", with: "\"\""))\""
 	}
 	func getCreateTableSQL(forTable: TableStructure, policy: TableCreatePolicy) throws -> [String] {
 		parentTableStack.append(forTable)
