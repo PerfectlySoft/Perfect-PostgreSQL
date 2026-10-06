@@ -79,7 +79,9 @@ See [Perfect-CRUD](https://github.com/PerfectlySoft/Perfect-CRUD) for the query 
 doesn't support:
 
 - **Dynamic Select:** `select(_: DynamicQuery)` throws "Dynamic rows are not supported by this connector" as soon as
-  a row comes back, and so does `execute(_: DynamicSQL)` for a statement that returns rows. `mutate(_: DynamicMutation)`
+  a row comes back, and so does `execute(_: DynamicSQL)` for a statement that returns rows. The error comes only
+  after the statement has run (and, outside a transaction, been committed): an `INSERT … RETURNING` through
+  `execute` has inserted its row when it throws, so retrying it inserts the row again. `mutate(_: DynamicMutation)`
   and row-less `DynamicSQL` work, but the result's `affectedRows` is always 0 and its `insertedID` is nil.
   `DynamicSQL` with `allowsMultipleStatements: true` throws (PostgreSQL's extended protocol takes one statement per
   call) and runs none of them.
@@ -88,7 +90,25 @@ doesn't support:
 `PGConnection` and `PGResult` are synchronous (blocking) and `@unchecked Sendable`. Every `PGConnection` method holds
 an internal lock, and `doWithTransaction` holds it for the whole transaction, so a connection can be shared between
 tasks. Separate calls from different tasks can still interleave, so give each task its own connection (for example
-through Perfect-CRUD's `DatabaseConnectionPool`) when that matters. There's no async/await API.
+through Perfect-CRUD's `DatabaseConnectionPool`) when that matters.
+
+That lock does not cover Perfect-CRUD's `Database.transaction` / `transactionAsync`: they send `BEGIN`, the body's
+statements and `COMMIT` or `ROLLBACK` as separate calls, so another task's statement on the same `Database` runs
+inside the transaction and is committed or rolled back with it. Don't share a `Database` that runs transactions
+between tasks; take one connection per task from a `DatabaseConnectionPool`. `PostgresDatabaseConfiguration` is
+`Sendable`, so the pool and CRUD's async entry points (`transactionAsync`, `insertAsync`, `fetchAll` and so on) work
+with it.
+
+Known limitations:
+
+- A `String` value containing a NUL character is cut off at the NUL when it's sent.
+- `[UInt8]` / `Data` columns are decoded from PostgreSQL's default hex `bytea` output; with `bytea_output = escape`
+  they decode as empty.
+- A NULL read into a non-optional `Int` or `String` property gives 0 or `""` rather than an error.
+- `Date` values are stored to the millisecond.
+- In Perfect-CRUD 3.0.0, a `UInt` or `UInt64` property of a `Codable` model holding a value above `Int.max` traps
+  when it's bound (a fix is planned for CRUD 3.0.1). The Dynamic API's `.uint` and `PGConnection`'s own parameters
+  handle the full range.
 
 ## Testing
 
@@ -124,11 +144,16 @@ need attention when upgrading:
   transaction closure that waits for another thread using the same connection will deadlock.
 * **`create()` with sub-tables.** Tables are created in foreign-key order, and `.dropTable` drops every table in the
   set before creating any. `.reconcileTable` now reconciles existing sub-tables too, which drops columns their models
-  no longer have, and fails with "must be owner" on a table the role doesn't own.
+  no longer have. When it needs to alter a table the role doesn't own, it fails with "must be owner".
 * **Identifiers containing `"`.** `quote(identifier:)` now doubles an embedded `"`, so such a name refers to the
   table or column of that exact name. Before, it ended the quoted identifier and let a Dynamic API name inject SQL.
-* **Logging.** Diagnostics go through [swift-log](https://github.com/apple/swift-log) (label `perfect.postgresql`)
-  instead of `print`.
+* **Connection parameters are quoted.** `PostgresDatabaseConfiguration(database:host:port:username:password:)` now
+  quotes each value, so a value is used exactly as given. If you escaped values yourself, or appended options inside
+  one (such as `host: "localhost port=5433"`), pass the plain value and use the matching parameter or a connection
+  string with `PostgresDatabaseConfiguration(_:)` instead.
+* **Logging.** The connector's one diagnostic of its own (an unhandled result status) goes through
+  [swift-log](https://github.com/apple/swift-log) (label `perfect.postgresql`) instead of `print`. Errors and queries
+  logged by the CRUD layer still go through Perfect-CRUD's `CRUDLogging`.
 
 ## License
 
