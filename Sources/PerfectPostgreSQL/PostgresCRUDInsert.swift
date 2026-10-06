@@ -14,6 +14,9 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 																		 instances: [OverAllForm],
 																		 includeKeys: [PartialKeyPath<OverAllForm>],
 																		 excludeKeys: [PartialKeyPath<OverAllForm>]) throws -> [OverAllForm] {
+	guard !instances.isEmpty else {
+		return []
+	}
 	typealias OAF = OverAllForm
 	let delegate = ft.databaseConfiguration.sqlGenDelegate
 	var state = SQLGenState(delegate: delegate)
@@ -90,6 +93,9 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 								   returning: KeyPath<OverAllForm, R>,
 								   includeKeys: [PartialKeyPath<OverAllForm>],
 								   excludeKeys: [PartialKeyPath<OverAllForm>]) throws -> [R] {
+	guard !instances.isEmpty else {
+		return []
+	}
 	typealias OAF = OverAllForm
 	let delegate = ft.databaseConfiguration.sqlGenDelegate
 	var state = SQLGenState(delegate: delegate)

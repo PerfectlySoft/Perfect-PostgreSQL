@@ -842,6 +842,22 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         _ = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
                                  ignoreKeys: \ReturningItem.id, \ReturningItem.def)
     }
+
+    // An empty array inserts nothing and returns nothing; it used to trap on instances[0].
+    @Test func returningInsertEmptyArray() throws {
+        guard pgEnabled else { return }
+        struct ReturningItem: Codable, Equatable {
+            let id: Int; let def: Int?
+        }
+        let db = try getTestDB()
+        try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id INT PRIMARY KEY, def INT DEFAULT 42)")
+        let table = db.table(ReturningItem.self)
+        #expect(try table.returning(insert: [ReturningItem]()).isEmpty)
+        #expect(try table.returning(insert: [ReturningItem](), ignoreKeys: \ReturningItem.def).isEmpty)
+        #expect(try table.returning(\.def, insert: [ReturningItem]()).isEmpty)
+        #expect(try table.returning(\.id, insert: [ReturningItem](), setKeys: \ReturningItem.id).isEmpty)
+        #expect(try table.count() == 0)
+    }
 }
 
 /// Low-level PGConnection checks: every parameter type `exec(statement:params:)` accepts must reach
