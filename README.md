@@ -81,6 +81,8 @@ doesn't support:
 - **Dynamic Select:** `select(_: DynamicQuery)` throws "Dynamic rows are not supported by this connector" as soon as
   a row comes back, and so does `execute(_: DynamicSQL)` for a statement that returns rows. `mutate(_: DynamicMutation)`
   and row-less `DynamicSQL` work, but the result's `affectedRows` is always 0 and its `insertedID` is nil.
+  `DynamicSQL` with `allowsMultipleStatements: true` throws (PostgreSQL's extended protocol takes one statement per
+  call) and runs none of them.
 - **Isolation levels:** `transaction(isolation:)` ignores the level and uses the server's default.
 
 `PGConnection` and `PGResult` are synchronous (blocking) and `@unchecked Sendable`. Every `PGConnection` method holds
