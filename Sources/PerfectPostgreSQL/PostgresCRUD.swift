@@ -586,7 +586,7 @@ class PostgresExeDelegate: SQLExeDelegate, @unchecked Sendable {
 	}
 }
 
-public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
+public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol, Sendable {
 	let connection: PGConnection
 	
 	public init(url: String?,
