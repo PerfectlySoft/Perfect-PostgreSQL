@@ -839,8 +839,17 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id SERIAL PRIMARY KEY, def INT DEFAULT 42)")
         let table = db.table(ReturningItem.self)
         try table.insert(ReturningItem(id: 0, def: 0), ignoreKeys: \ReturningItem.id, \ReturningItem.def)
-        _ = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
+        let def = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
                                  ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(def == 42)
+        // The whole-row form with every key ignored: DEFAULT VALUES, like the key-path form.
+        let row = try table.returning(insert: ReturningItem(id: 0, def: 0),
+                                      ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(row.id == 3)
+        #expect(row.def == 42)
+        let rows = try table.returning(insert: [ReturningItem(id: 0), ReturningItem(id: 0)],
+                                       ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(rows.map(\.id) == [4, 5])
     }
 
     // An empty array inserts nothing and returns nothing; it used to trap on instances[0].

@@ -58,11 +58,17 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 	let bindIdentifiers = bindings.map { $0.identifier }
 	
 	let nameQ = try delegate.quote(identifier: "\(OAF.CRUDTableName)")
-	let sqlStr = """
-	INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
-	VALUES (\(bindIdentifiers.joined(separator: ", ")))
-	RETURNING *
-	"""
+	let sqlStr: String
+	if columnNames.isEmpty {
+		// "INSERT INTO t () VALUES ()" isn't valid PostgreSQL.
+		sqlStr = "INSERT INTO \(nameQ) DEFAULT VALUES RETURNING *"
+	} else {
+		sqlStr = """
+		INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
+		VALUES (\(bindIdentifiers.joined(separator: ", ")))
+		RETURNING *
+		"""
+	}
 	CRUDLogging.log(.query, sqlStr)
 	let exeDelegate = PostgresExeDelegate(connection: databaseConfiguration.connection, sql: sqlStr)
 	try exeDelegate.bind(delegate.bindings)
