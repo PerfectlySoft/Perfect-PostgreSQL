@@ -66,7 +66,7 @@ jobs:
 
   macos:
     # GitHub's macOS runners have no PostgreSQL server: this builds everything and runs the
-    # tests that don't need one (the live tests do nothing without PG_TESTS=1).
+    # tests that don't need one (the live tests are skipped without PG_TESTS=1).
     name: macOS (Xcode ${{ matrix.xcode }}, ${{ matrix.configuration }})
     runs-on: macos-26
     timeout-minutes: 30

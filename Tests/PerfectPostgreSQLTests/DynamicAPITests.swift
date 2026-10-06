@@ -8,8 +8,7 @@ import PerfectCRUD
 // `DynamicRow`; a statement string with several statements is rejected by the server; and
 // unsigned values are bound as their decimal text, so even UInt64.max can't trap.
 // Uses only `dbname=postgres` and TEMP tables, which are private to the connection.
-@Suite struct DynamicAPITests {
-	let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+@Suite(.enabled(if: pgTestsEnabled)) struct DynamicAPITests {
 
 	func connect() throws -> Database<PostgresDatabaseConfiguration> {
 		Database(configuration: try PostgresDatabaseConfiguration(postgresInitConnInfo))
@@ -18,7 +17,6 @@ import PerfectCRUD
 	private struct Count: Codable { let c: Int }
 
 	@Test func selectThrowsOnceARowComesBack() throws {
-		guard pgEnabled else { return }
 		let db = try connect()
 		try db.sql("CREATE TEMP TABLE dyn_select (id int, name text)")
 		#expect(try db.select(DynamicQuery(table: "dyn_select")).rows.isEmpty)
@@ -34,7 +32,6 @@ import PerfectCRUD
 	}
 
 	@Test func mutationCountsAreNotReported() throws {
-		guard pgEnabled else { return }
 		let db = try connect()
 		try db.sql("CREATE TEMP TABLE dyn_count (id int)")
 		let insert = try db.mutate(DynamicMutation(action: .insert, table: "dyn_count", values: ["id": .int(1)]))
@@ -49,7 +46,6 @@ import PerfectCRUD
 
 	// PQexecParams accepts one statement only, so neither statement runs and the call throws.
 	@Test func multipleStatementsThrowAndRunNothing() throws {
-		guard pgEnabled else { return }
 		let db = try connect()
 		try db.sql("CREATE TEMP TABLE dyn_multi (id int)")
 		let error = #expect(throws: CRUDSQLExeError.self) {
@@ -64,7 +60,6 @@ import PerfectCRUD
 	}
 
 	@Test func unsignedValuesBindExactly() throws {
-		guard pgEnabled else { return }
 		let db = try connect()
 		try db.sql("CREATE TEMP TABLE dyn_uint (id int, n numeric, b bigint)")
 		_ = try db.mutate(DynamicMutation(action: .insert, table: "dyn_uint",
