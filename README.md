@@ -106,9 +106,8 @@ Known limitations:
   they decode as empty.
 - A NULL read into a non-optional `Int` or `String` property gives 0 or `""` rather than an error.
 - `Date` values are stored to the millisecond.
-- In Perfect-CRUD 3.0.0, a `UInt` or `UInt64` property of a `Codable` model holding a value above `Int.max` traps
-  when it's bound (a fix is planned for CRUD 3.0.1). The Dynamic API's `.uint` and `PGConnection`'s own parameters
-  handle the full range.
+- A `UInt` or `UInt64` value above `Int64.max` binds (Perfect-CRUD 3.0.1 sends it as unsigned), but a `bigint`
+  column can't hold it, so the server rejects it with an error.
 
 ## Testing
 
