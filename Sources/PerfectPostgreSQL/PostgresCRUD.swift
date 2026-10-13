@@ -586,7 +586,7 @@ class PostgresExeDelegate: SQLExeDelegate, @unchecked Sendable {
 	}
 }
 
-public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
+public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol, Sendable {
 	let connection: PGConnection
 	
 	public init(url: String?,
@@ -606,17 +606,33 @@ public struct PostgresDatabaseConfiguration: DatabaseConfigurationProtocol {
 	}
 	
 	public init(database: String, host: String, port: Int? = nil, username: String? = nil, password: String? = nil) throws {
-		var s = "host=\(host) dbname=\(database)"
+		try self.init(Self.connectionInfo(database: database, host: host, port: port, username: username, password: password))
+	}
+	// Each value is single-quoted, with `\` and `'` backslash-escaped, as libpq's conninfo
+	// syntax requires. Unquoted, a password containing a space failed to parse, and a value
+	// like "x sslmode=disable" added a connection option of its own.
+	static func connectionInfo(database: String, host: String, port: Int?, username: String?, password: String?) -> String {
+		func quoted(_ value: String) -> String {
+			var escaped = String.UnicodeScalarView()
+			for scalar in value.unicodeScalars {
+				if scalar == "\\" || scalar == "'" {
+					escaped.append("\\")
+				}
+				escaped.append(scalar)
+			}
+			return "'\(String(escaped))'"
+		}
+		var s = "host=\(quoted(host)) dbname=\(quoted(database))"
 		if let p = port {
 			s += " port=\(p)"
 		}
 		if let u = username {
-			s += " user=\(u)"
+			s += " user=\(quoted(u))"
 		}
 		if let p = password {
-			s += " password=\(p)"
+			s += " password=\(quoted(p))"
 		}
-		try self.init(s)
+		return s
 	}
 	public init(_ connectionInfo: String) throws {
 		let con = PGConnection()

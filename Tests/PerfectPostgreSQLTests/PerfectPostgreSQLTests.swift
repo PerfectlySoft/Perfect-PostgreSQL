@@ -10,6 +10,9 @@ let postgresInitConnInfo = "host=localhost dbname=postgres"
 let postgresTestConnInfo = "host=localhost dbname=testing123"
 typealias DBConfiguration = PostgresDatabaseConfiguration
 
+/// The tests that need a server run only with `PG_TESTS=1`; without it they show as skipped.
+let pgTestsEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+
 func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     if reset {
         let db = Database(configuration: try DBConfiguration(postgresInitConnInfo))
@@ -20,7 +23,7 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
 }
 
 // Serialized: every test drops and recreates the same database.
-@Suite(.serialized) struct PerfectPostgreSQLTests {
+@Suite(.serialized, .enabled(if: pgTestsEnabled)) struct PerfectPostgreSQLTests {
 
     struct TestTable1: Codable, TableNameProvider {
         enum CodingKeys: String, CodingKey {
@@ -64,7 +67,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         }
     }
 
-    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
 
     init() {
         CRUDClearTableStructureCache()
@@ -98,7 +100,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func create1() throws {
-        guard pgEnabled else { return }
         let db = try getDB()
         try db.create(TestTable1.self, policy: .dropTable)
         do {
@@ -147,7 +148,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func create2() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         try db.create(TestTable1.self, primaryKey: \.id, policy: .dropTable)
         do {
@@ -179,7 +179,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func create3() throws {
-        guard pgEnabled else { return }
         struct FakeTestTable1: Codable, TableNameProvider {
             enum CodingKeys: String, CodingKey {
                 case id, name, double = "doub", double2 = "doub2", blob, subTables
@@ -208,7 +207,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectAll() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let j2 = db.table(TestTable1.self)
         for row in try j2.select() {
@@ -217,7 +215,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectIn() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let table = db.table(TestTable1.self)
         #expect(try table.where(\TestTable1.id ~ [2, 4]).count() == 2)
@@ -225,7 +222,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectLikeString() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let table = db.table(TestTable2.self)
         #expect(try table.where(\TestTable2.name %=% "me").count() == 25)
@@ -237,7 +233,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectJoin() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let j2 = try db.table(TestTable1.self)
             .order(by: \TestTable1.name)
@@ -255,7 +250,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func insert1() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let t1 = db.table(TestTable1.self)
         let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
@@ -267,7 +261,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func insert2() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let t1 = db.table(TestTable1.self)
         let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
@@ -280,7 +273,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func insert3() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let t1 = db.table(TestTable1.self)
         let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
@@ -295,7 +287,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func update() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
         let newId: Int = try db.transaction {
@@ -316,7 +307,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func delete() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let t1 = db.table(TestTable1.self)
         let newOne = TestTable1(id: 2000, name: "New One", integer: 40)
@@ -330,7 +320,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectLimit() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         #expect(try db.table(TestTable1.self).limit(2, skip: 2).select().map { $0 }.count == 2)
         #expect(try db.table(TestTable1.self).limit(2...3).select().map { $0 }.count == 2)
@@ -347,7 +336,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectLimitWhere() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let j2 = db.table(TestTable1.self).limit(3).where(\TestTable1.id > 3)
         #expect(try j2.count() == 2)
@@ -355,7 +343,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectOrderLimitWhere() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let j2 = db.table(TestTable1.self).order(by: \TestTable1.id).limit(3).where(\TestTable1.id > 3)
         #expect(try j2.count() == 2)
@@ -363,7 +350,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selectWhereNULL() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let t1 = db.table(TestTable1.self)
         let j1 = t1.where(\TestTable1.blob == nil)
@@ -374,7 +360,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func personThing() throws {
-        guard pgEnabled else { return }
         struct PhoneNumber: Codable {
             let personId: UUID
             let planetCode: Int
@@ -412,7 +397,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func standardJoin() throws {
-        guard pgEnabled else { return }
         struct Parent: Codable {
             let id: Int
             let children: [Child]?
@@ -439,7 +423,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func junctionJoin() throws {
-        guard pgEnabled else { return }
         struct Student: Codable {
             let id: Int
             let classes: [Class]?
@@ -480,7 +463,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selfJoin() throws {
-        guard pgEnabled else { return }
         struct Me: Codable {
             let id: Int
             let parentId: Int
@@ -500,7 +482,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func selfJunctionJoin() throws {
-        guard pgEnabled else { return }
         struct Me: Codable {
             let id: Int
             let us: [Me]?
@@ -524,7 +505,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func codableProperty() throws {
-        guard pgEnabled else { return }
         struct Sub: Codable { let id: Int }
         struct Top: Codable { let id: Int; let sub: Sub? }
         let db = try getTestDB()
@@ -537,7 +517,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func badDecoding() throws {
-        guard pgEnabled else { return }
         struct Top: Codable, TableNameProvider {
             static let tableName = "Top"
             let id: Int
@@ -555,7 +534,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func allPrimTypes1() throws {
-        guard pgEnabled else { return }
         struct AllTypes: Codable {
             let int: Int; let uint: UInt; let int64: Int64; let uint64: UInt64
             let int32: Int32?; let uint32: UInt32?; let int16: Int16; let uint16: UInt16
@@ -599,7 +577,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func allPrimTypes2() throws {
-        guard pgEnabled else { return }
         struct AllTypes2: Codable {
             let int: Int?; let uint: UInt?; let int64: Int64?; let uint64: UInt64?
             let int32: Int32?; let uint32: UInt32?; let int16: Int16?; let uint16: UInt16?
@@ -647,7 +624,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func bespokeSQL() throws {
-        guard pgEnabled else { return }
         let db = try getTestDB()
         let r1 = try db.sql("SELECT * FROM \(TestTable1.CRUDTableName) WHERE id = 2", TestTable1.self)
         #expect(r1.count == 1)
@@ -656,7 +632,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func modelClasses() throws {
-        guard pgEnabled else { return }
         class BaseClass: Codable {
             let id: Int
             let name: String
@@ -702,7 +677,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func url() throws {
-        guard pgEnabled else { return }
         struct TableWithURL: Codable { let id: Int; let url: URL }
         let db = try getTestDB()
         try db.create(TableWithURL.self)
@@ -717,7 +691,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func manyJoins() throws {
-        guard pgEnabled else { return }
         struct Person2: Codable { var id: UUID; var name: String; let cars: [Car]?; let boats: [Boat]?; let houses: [House]? }
         struct Car: Codable { var id: UUID; var owner: UUID }
         struct Boat: Codable { var id: UUID; var owner: UUID }
@@ -745,15 +718,7 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         #expect(j2.houses?.count == 5)
     }
 
-    @Test func dateFormat() {
-        #expect(Date(fromISO8601: "2018-08-18 08:10:51-04") != nil)
-        #expect(Date(fromISO8601: "2018-08-18 08:10:51.32-04:00") != nil)
-        #expect(Date(fromISO8601: "2018-08-18 08:10:51Z") != nil)
-        #expect(Date(fromISO8601: "2018-08-18 08:10:51.43Z") != nil)
-    }
-
     @Test func assets() throws {
-        guard pgEnabled else { return }
         struct Asset: Codable {
             let id: UUID; let name: String?; let assetLog: [AssetLog]?
             init(id: UUID, name: String? = nil, assetLog: [AssetLog]? = nil) {
@@ -783,7 +748,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func returningInsert() throws {
-        guard pgEnabled else { return }
         struct ReturningItem: Codable, Equatable {
             let id: UUID; let def: Int?
             init(id: UUID, def: Int? = nil) { self.id = id; self.def = def }
@@ -808,7 +772,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func returningUpdate() throws {
-        guard pgEnabled else { return }
         struct ReturningItem: Codable, Equatable {
             let id: UUID; var def: Int?
             init(id: UUID, def: Int? = nil) { self.id = id; self.def = def }
@@ -829,7 +792,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func emptyInsert() throws {
-        guard pgEnabled else { return }
         struct ReturningItem: Codable, Equatable {
             let id: Int?; var def: Int?
             init(id: Int, def: Int? = nil) { self.id = id; self.def = def }
@@ -839,8 +801,42 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
         try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id SERIAL PRIMARY KEY, def INT DEFAULT 42)")
         let table = db.table(ReturningItem.self)
         try table.insert(ReturningItem(id: 0, def: 0), ignoreKeys: \ReturningItem.id, \ReturningItem.def)
-        _ = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
+        let def = try table.returning(\.def, insert: ReturningItem(id: 0, def: 0),
                                  ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(def == 42)
+        // The whole-row form with every key ignored: DEFAULT VALUES, like the key-path form.
+        let row = try table.returning(insert: ReturningItem(id: 0, def: 0),
+                                      ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(row.id == 3)
+        #expect(row.def == 42)
+        let rows = try table.returning(insert: [ReturningItem(id: 0), ReturningItem(id: 0)],
+                                       ignoreKeys: \ReturningItem.id, \ReturningItem.def)
+        #expect(rows.map(\.id) == [4, 5])
+    }
+
+    // An empty array inserts nothing and returns nothing; it used to trap on instances[0].
+    @Test func returningInsertEmptyArray() throws {
+        struct ReturningItem: Codable, Equatable {
+            let id: Int; let def: Int?
+        }
+        let db = try getTestDB()
+        try db.sql("CREATE TABLE \(ReturningItem.CRUDTableName) (id INT PRIMARY KEY, def INT DEFAULT 42)")
+        let table = db.table(ReturningItem.self)
+        #expect(try table.returning(insert: [ReturningItem]()).isEmpty)
+        #expect(try table.returning(insert: [ReturningItem](), ignoreKeys: \ReturningItem.def).isEmpty)
+        #expect(try table.returning(\.def, insert: [ReturningItem]()).isEmpty)
+        #expect(try table.returning(\.id, insert: [ReturningItem](), setKeys: \ReturningItem.id).isEmpty)
+        #expect(try table.count() == 0)
+    }
+}
+
+/// Needs no server: PostgreSQL's timestamp text formats parse as Dates.
+@Suite struct DateFormatTests {
+    @Test func dateFormat() {
+        #expect(Date(fromISO8601: "2018-08-18 08:10:51-04") != nil)
+        #expect(Date(fromISO8601: "2018-08-18 08:10:51.32-04:00") != nil)
+        #expect(Date(fromISO8601: "2018-08-18 08:10:51Z") != nil)
+        #expect(Date(fromISO8601: "2018-08-18 08:10:51.43Z") != nil)
     }
 }
 
@@ -848,8 +844,7 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
 /// the server intact, and COPY data must be sent with its byte length.
 /// Uses only `dbname=postgres` and TEMP tables; don't call `getDB()` here, because
 /// PerfectPostgreSQLTests drops and recreates its database and this suite runs alongside it.
-@Suite struct PGConnectionParameterTests {
-    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+@Suite(.enabled(if: pgTestsEnabled)) struct PGConnectionParameterTests {
 
     func connect() throws -> PGConnection {
         let conn = PGConnection()
@@ -861,7 +856,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func execParamsRoundTrip() throws {
-        guard pgEnabled else { return }
         let conn = try connect()
         defer { conn.finish() }
         let text = "héllo wörld ✓ 日本語"
@@ -881,7 +875,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func manyParamsInOneStatement() throws {
-        guard pgEnabled else { return }
         let conn = try connect()
         defer { conn.finish() }
         // Many parameters in one call: guards the per-parameter buffers against mix-ups.
@@ -893,7 +886,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func copyDataWithNonASCIIText() throws {
-        guard pgEnabled else { return }
         let conn = try connect()
         defer { conn.finish() }
         #expect(conn.exec(statement: "CREATE TEMP TABLE copy_test (t text)").status() == .commandOK)
@@ -910,8 +902,7 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
 
 /// PGConnection is `Sendable`: one connection shared between tasks must stay usable, and a
 /// transaction must not have other callers' statements slipped into it.
-@Suite struct PGConnectionConcurrencyTests {
-    let pgEnabled = ProcessInfo.processInfo.environment["PG_TESTS"] == "1"
+@Suite(.enabled(if: pgTestsEnabled)) struct PGConnectionConcurrencyTests {
 
     func connect() throws -> PGConnection {
         let conn = PGConnection()
@@ -922,7 +913,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func sharedConnectionAcrossTasks() async throws {
-        guard pgEnabled else { return }
         let conn = try connect()
         defer { conn.finish() }
         try await withThrowingTaskGroup(of: Void.self) { group in
@@ -939,7 +929,6 @@ func getDB(reset: Bool = true) throws -> Database<DBConfiguration> {
     }
 
     @Test func transactionIsNotInterleaved() async throws {
-        guard pgEnabled else { return }
         let conn = try connect()
         defer { conn.finish() }
         try conn.execute(statement: "CREATE TEMP TABLE tx_test (n int)")

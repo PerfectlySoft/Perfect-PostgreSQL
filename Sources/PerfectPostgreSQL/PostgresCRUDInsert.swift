@@ -14,6 +14,9 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 																		 instances: [OverAllForm],
 																		 includeKeys: [PartialKeyPath<OverAllForm>],
 																		 excludeKeys: [PartialKeyPath<OverAllForm>]) throws -> [OverAllForm] {
+	guard !instances.isEmpty else {
+		return []
+	}
 	typealias OAF = OverAllForm
 	let delegate = ft.databaseConfiguration.sqlGenDelegate
 	var state = SQLGenState(delegate: delegate)
@@ -55,11 +58,17 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol>(fromTab
 	let bindIdentifiers = bindings.map { $0.identifier }
 	
 	let nameQ = try delegate.quote(identifier: "\(OAF.CRUDTableName)")
-	let sqlStr = """
-	INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
-	VALUES (\(bindIdentifiers.joined(separator: ", ")))
-	RETURNING *
-	"""
+	let sqlStr: String
+	if columnNames.isEmpty {
+		// "INSERT INTO t () VALUES ()" isn't valid PostgreSQL.
+		sqlStr = "INSERT INTO \(nameQ) DEFAULT VALUES RETURNING *"
+	} else {
+		sqlStr = """
+		INSERT INTO \(nameQ) (\(columnNames.joined(separator: ", ")))
+		VALUES (\(bindIdentifiers.joined(separator: ", ")))
+		RETURNING *
+		"""
+	}
 	CRUDLogging.log(.query, sqlStr)
 	let exeDelegate = PostgresExeDelegate(connection: databaseConfiguration.connection, sql: sqlStr)
 	try exeDelegate.bind(delegate.bindings)
@@ -90,6 +99,9 @@ private func _insert<OverAllForm: Codable, FromTableType: TableProtocol, R: Deco
 								   returning: KeyPath<OverAllForm, R>,
 								   includeKeys: [PartialKeyPath<OverAllForm>],
 								   excludeKeys: [PartialKeyPath<OverAllForm>]) throws -> [R] {
+	guard !instances.isEmpty else {
+		return []
+	}
 	typealias OAF = OverAllForm
 	let delegate = ft.databaseConfiguration.sqlGenDelegate
 	var state = SQLGenState(delegate: delegate)
